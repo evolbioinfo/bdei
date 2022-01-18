@@ -1,0 +1,405 @@
+import os
+# To run locally:
+# snakemake --snakefile Snakefile_SLE_tree --config folder=. --keep-going --cores 4 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
+# snakemake --snakefile Snakefile_SLE_tree  --keep-going --cores 4 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
+
+
+# To run on bioevo (change shakemake activation below if you are not Anna ;) :
+# source ~/.bashrc && conda activate snakemake && module load singularity/3.6.4 && cd /pasteur/zeus/projets/p01/Evolbioinfo/users/azhukova/projects/bdei/ebola
+# snakemake --snakefile Snakefile_SLE_tree --keep-going --cores 1 --use-singularity --singularity-prefix $HOME/.singularity --singularity-args "-B /pasteur" --cluster "sbatch -c {threads} -o {folder}/logs/{params.name}.log -e {folder}/logs/{params.name}.log --mem {params.mem} -p bioevo --qos=bioevo  -A bioevo -J {params.name}" --jobs 300
+
+
+# To visualise the pipeline:
+# snakemake --snakefile Snakefile_SLE_tree --dag | dot -Tsvg > pipeline_trees.svg
+
+localrules: all
+
+
+folder = os.path.abspath(config.get("folder", '.'))
+data_dir = os.path.join(folder, 'SLE')
+
+os.makedirs(os.path.join(folder, 'logs'), exist_ok=True)
+
+N = 10
+
+rule all:
+    input:
+        expand(os.path.join(data_dir, 'SLE.{i}.days.nwk'), i=range(N)),
+        expand(os.path.join(data_dir, 'timetree.{i}.itol'), i=range(N)),
+        expand(os.path.join(data_dir, 'beast', '{i}', 'tree.nwk'), i=range(N)),
+        expand(os.path.join(data_dir, 'iTOL', 'iTOL_selected.{i}.txt'), i=range(N)),
+
+
+rule itol_selected_annotation:
+    '''
+    Extracts itol metadata
+    '''
+    input:
+        tree = os.path.join(data_dir, 'SLE.{i}.nwk'),
+    output:
+        os.path.join(data_dir, 'iTOL', 'iTOL_selected.{i,[0-9]+}.txt'),
+    singularity: "docker://evolbioinfo/pastml:v1.9.34"
+    params:
+        mem = 2000,
+        name = 'itol',
+    threads: 1
+    shell:
+        """
+        python3 py/itol_tree.py --tree {input} --itol {output}
+        """
+
+rule aln_length:
+    '''
+    Calculates alignment length.
+    '''
+    input:
+        aln = os.path.join(data_dir, '{aln}.ids.fa'),
+    output:
+        length = os.path.join(data_dir, '{aln}.length'),
+    singularity:
+        "docker://evolbioinfo/goalign:v0.3.1"
+    params:
+        mem = 10000,
+        name = 'aln_len',
+        qos = 'fast'
+    threads: 1
+    shell:
+        """
+        goalign stats length -i {input.aln} > {output.length}
+        """
+
+rule raxml:
+    '''
+    Reconstructs a tree with RAxML.
+    '''
+    input:
+        aln = os.path.join(data_dir, 'aln.ids.fa')
+    output:
+        tree = os.path.join(data_dir, 'tree.nwk'),
+        log = os.path.join(data_dir, 'tree.log'),
+    threads: 12
+    singularity: "docker://evolbioinfo/raxml-ng:v1.0.2"
+    params:
+        mem = 120000,
+        name = 'raxmlng',
+        qos = 'normal'
+    shell:
+        """
+        raxml-ng --model GTR+G4+FO+IO --msa {input.aln} --msa-format FASTA --data-type DNA \
+        --seed 239 --threads {threads} --force --tree pars{{1}} --blmin 1e-10 --precision 16 --simd avx2
+        cp {input.aln}.raxml.bestTree {output.tree}
+        cp {input.aln}.raxml.log {output.log}
+        rm -rf {input.aln}.raxml.*
+        """
+
+rule extract_dates_lsd2:
+    '''
+    Reformats metadata into date file readable by LSD.
+    '''
+    input:
+        tab = os.path.join(data_dir, 'metadata.csv'),
+    output:
+        tab = os.path.join(data_dir, 'lsd2.dates'),
+    params:
+        mem = 1000,
+        name = 'lsd2_dates',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6"
+    shell:
+        """
+        python3 py/extract_dates_lsd.py --data {input.tab} --dates {output.tab} \
+        --date_col "date"
+        """
+
+rule date_full_tree:
+    '''
+    Dates a tree.
+    Minimal branch length is set to 1 hour = 1/365/24=0.0001
+    '''
+    input:
+        tree = os.path.join(data_dir, 'tree.nwk'),
+        length = os.path.join(data_dir, 'aln.length'),
+        dates = os.path.join(data_dir, 'lsd2.dates'),
+    output:
+        tree = os.path.join(data_dir, 'timetree.nexus'),
+        log = os.path.join(data_dir, 'timetree.log'),
+        rd = os.path.join(data_dir, 'timetree.rootdate'),
+        outliers = os.path.join(data_dir, 'timetree.outliers'),
+    threads: 1
+    singularity: "docker://evolbioinfo/lsd2:v1.10"
+    params:
+        mem = 120000,
+        name = 'lsd2',
+        wd = os.path.join(data_dir, 'timetree.wd'),
+        qos = 'fast'
+    shell:
+        """
+        n=`head {input.length}`
+
+        echo "lsd2 -i {input.tree} -d {input.dates} -s $n -o {params.wd} -r a -f 1000 -e 3 -m 500 -u 0.0001"
+
+        lsd2 -i {input.tree} -d {input.dates} -s $n -o {params.wd} -r a -f 1000 -e 3 -m 500 -u 0.0001
+
+        pattern_g='\\- The input dates associated with the following'
+
+        outliers=`grep -A 2 -i "$pattern_g" {params.wd} | tail -n 1`
+        for o in $outliers
+        do
+            echo $o >> {output.outliers}
+        done
+
+        mv "{params.wd}.date.nexus" "{output.tree}"
+        mv "{params.wd}" "{output.log}"
+        rm -rf {params.wd}*
+
+        echo `grep "], tMRCA" {output.log} | sed -e 's/rate [0-9\\.e+-]\\+ \\[[0-9\\.e+-]\\+; [0-9\\.e+-]\\+\\], tMRCA //g' \
+        | sed -e 's/ \\[[0-9\\.e+-]\\+; [0-9\\.e+-]\\+\\], objective function [0-9\\.e+-]\\+//g'` > {output.rd}
+        """
+
+
+rule resolve:
+    '''
+    Resolves polytomies in the tree.
+    '''
+    input:
+        tree = os.path.join(data_dir, 'tree.nwk'),
+        timetree = os.path.join(data_dir, 'timetree.nexus'),
+        length = os.path.join(data_dir, 'aln.length'),
+    output:
+        tree = os.path.join(data_dir, 'rooted.tree.{i,[0-9]+}.nwk'),
+    threads: 1
+    singularity: "docker://evolbioinfo/pastml:v1.9.34"
+    params:
+        mem = 10000,
+        name = 'resolve.{i}',
+        qos = 'fast'
+    shell:
+        """
+        n=`head {input.length}`
+
+        python3 py/root_tree.py --in_nwk {input.tree} --in_nex {input.timetree} --out_nwk {output.tree} --aln_len $n
+        """
+
+rule date_lsd2_resolved:
+    '''
+    Dates a tree.
+    Minimal branch length is set to 1 hour = 1/365/24=0.0001
+    '''
+    input:
+        tree = os.path.join(data_dir, 'rooted.{tree}.nwk'),
+        length = os.path.join(data_dir, 'aln.length'),
+        dates = os.path.join(data_dir, 'lsd2.dates'),
+    output:
+        tree = os.path.join(data_dir, 'time{tree}.nexus'),
+        log = os.path.join(data_dir, 'time{tree}.log'),
+        rd = os.path.join(data_dir, 'time{tree}.rootdate'),
+        outliers = os.path.join(data_dir, 'time{tree}.outliers'),
+    threads: 1
+    singularity: "docker://evolbioinfo/lsd2:v1.10"
+    params:
+        mem = 120000,
+        name = 'lsd2',
+        wd = os.path.join(data_dir, 'time{tree}.wd'),
+        qos = 'fast'
+    shell:
+        """
+        n=`head {input.length}`
+
+        echo "lsd2 -i {input.tree} -d {input.dates} -s $n -o {params.wd} -f 1000 -e 3 -m 500 -u 0.0001 -l 0"
+
+        lsd2 -i {input.tree} -d {input.dates} -s $n -o {params.wd} -f 1000 -e 3 -m 500 -u 0.0001 -l 0
+
+        pattern_g='\\- The input dates associated with the following'
+
+        outliers=`grep -A 2 -i "$pattern_g" {params.wd} | tail -n 1`
+        for o in $outliers
+        do
+            echo $o >> {output.outliers}
+        done
+
+        mv "{params.wd}.date.nexus" "{output.tree}"
+        mv "{params.wd}" "{output.log}"
+        rm -rf {params.wd}*
+
+        echo `grep "], tMRCA" {output.log} | sed -e 's/rate [0-9\\.e+-]\\+ \\[[0-9\\.e+-]\\+; [0-9\\.e+-]\\+\\], tMRCA //g' \
+        | sed -e 's/ \\[[0-9\\.e+-]\\+; [0-9\\.e+-]\\+\\], objective function [0-9\\.e+-]\\+//g'` > {output.rd}
+        """
+
+rule pastml:
+    '''
+    Reconstructs ancestral states.
+    '''
+    input:
+        nwk = os.path.join(data_dir, 'timetree.{i}.nexus'),
+        csv = os.path.join(data_dir, 'metadata.csv'),
+    output:
+        nwk = os.path.join(data_dir, 'pastml', '{i}', 'named.tree_timetree.{i}.nwk'),
+        mp = os.path.join(data_dir, 'pastml', '{i}', 'marginal_probabilities.character_country.model_F81.tab'),
+        pars = os.path.join(data_dir, 'pastml', '{i}', 'params.character_country.method_MPPA.model_F81.tab'),
+    params:
+        mem = 1000,
+        name = 'years2days',
+        qos = 'fast',
+        wd = os.path.join(data_dir, 'pastml', '{i}')
+    threads: 1
+    singularity: "docker://evolbioinfo/pastml:v1.9.34"
+    shell:
+        """
+        pastml -t {input.nwk} -d {input.csv} -s , -c country -v --work_dir {params.wd} --smoothing
+        """
+
+rule years2days:
+    '''
+    Converts years to days in tree branches.
+    '''
+    input:
+        nwk = os.path.join(data_dir, '{tree}.nwk'),
+    output:
+        nwk = os.path.join(data_dir, '{tree}.days.nwk'),
+    params:
+        mem = 1000,
+        name = 'years2days',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/pastml:v1.9.34"
+    shell:
+        """
+        python3 py/years2days.py --in_nwk {input} --out_nwk {output}
+        """
+
+rule SLE:
+    '''
+    Extracts SLE tree.
+    '''
+    input:
+        nwk = os.path.join(data_dir, 'pastml', '{i}', 'named.tree_timetree.{i}.nwk'),
+        mp = os.path.join(data_dir, 'pastml', '{i}', 'marginal_probabilities.character_country.model_F81.tab'),
+    output:
+        nwk = os.path.join(data_dir, 'SLE.{i,[0-9]+}.nwk'),
+    params:
+        mem = 1000,
+        name = 'SLE.{i}',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/pastml:v1.9.34"
+    shell:
+        """
+        python3 py/SLE_forest.py --in_tree {input.nwk} --out_forest {output.nwk} --tab {input.mp} --date 2014.5780821917808
+        """
+
+rule beast_tree:
+    '''
+    Extracts BEAST tree.
+    '''
+    input:
+        nwk = os.path.join(data_dir, 'SLE.{i,[0-9]+}.days.nwk'),
+        dates = os.path.join(data_dir, 'lsd2.dates'),
+        aln = os.path.join(data_dir, 'aln.ids.fa'),
+    output:
+        nwk = os.path.join(data_dir, 'beast', '{i}', 'tree.nwk'),
+        dates = os.path.join(data_dir, 'beast', '{i}', 'dates.tab'),
+        aln = os.path.join(data_dir, 'beast', '{i}', 'aln.fa'),
+    params:
+        mem = 1000,
+        name = 'BEAST2.{i}',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/pastml:v1.9.34"
+    shell:
+        """
+        python3 py/extract_beast.py --in_nwk {input.nwk} --out_nwk {output.nwk} \
+        --in_dates {input.dates} --out_dates {output.dates} --in_aln {input.aln} --out_aln {output.aln}
+        """
+
+rule pastml_itol:
+    '''
+    Visualisation with iTOL.
+    '''
+    input:
+        nwk = os.path.join(data_dir, 'timetree.{i}.nexus'),
+        csv = os.path.join(data_dir, 'metadata.csv'),
+        pars = os.path.join(data_dir, 'pastml', '{i}', 'params.character_country.method_MPPA.model_F81.tab'),
+    output:
+        itol = os.path.join(data_dir, 'timetree.{i}.itol'),
+        treeid = os.path.join(data_dir, 'pastml', '{i}', 'iTOL_tree_id.txt'),
+    threads: 2
+    singularity: "docker://evolbioinfo/pastml:v1.9.34"
+    params:
+        mem = 4000,
+        name = 'itol',
+        wd = os.path.join(data_dir, 'pastml_itol', '{i}'),
+        qos = 'fast'
+    shell:
+        """
+        pastml --tree {input.nwk} -d {input.csv} -s , -v --work_dir "{params.wd}"  \
+        --columns "country" --parameters {input.pars} \
+        --upload_to_itol --itol_id ZxuhG2okfKLQnsgd5xAEGQ --itol_project EBV \
+        --itol_tree_name "Makona.{wildcards.i}"
+
+        mv {params.wd}/iTOL_url.txt {output.itol}
+        mv {params.wd}/iTOL_tree_id.txt  {output.treeid}
+
+#        rm -rf "{params.wd}"
+        """
+
+
+rule fig:
+    '''
+    Extracts itol visualisations.
+    '''
+    input:
+        tree = os.path.join(data_dir, 'pastml', '{i}' 'iTOL_tree_id.txt'),
+        rd = os.path.join(data_dir, 'timetree.{i}.rootdate'),
+    output:
+        loc = os.path.join(data_dir, 'tree.{i}.{format}')
+    params:
+        mem = 2000,
+        name = 'itol_download.{i}'
+    singularity:
+        "docker://evolbioinfo/gotree:v0.3.0b"
+    threads: 1
+    shell:
+        """
+        tree=`head {input.tree}`
+        rm -rf {output.loc}.config.tab
+        echo "tree\t${{tree}}" > {output.loc}.config.tab
+        echo '''format\t{wildcards.format}
+display_mode\t2
+horizontal_scale_factor\t0.6
+line_width\t1
+dashed_lines\t1
+default_branch_color\trgb(170,170,170)
+line_gradient\t1
+current_font_size\t0
+label_display\t0
+datasets_visible\t0,1
+arc\t350
+rotation\t90
+tree_x\t400
+tree_y\t200''' >> {output.loc}.config.tab
+
+            date=`head {input.rd}`
+            scale=`awk -v n="$date" -v m="2014.5780821917808" 'BEGIN {{ printf("%.8f", m - n); }}'`
+            echo "internalScaleFixed\t${{scale}}" >> {output.loc}.config.tab
+            echo '''internal_scale\t1
+internalScaleAxis\t0
+internalScaleGrid\t1
+internalScaleFontSize\t18
+internalScale1\t100
+internalScale2\t100
+internalScale1Color\trgb(222,222,222)
+internalScale2Color\trgb(222,222,222)
+internalScaleFixedColor\trgb(222,222,222)
+internalScale1Label\t0
+internalScale2Label\t0
+internalScaleFixedLabel\t1
+internalScale1Wid\t1
+internalScale2Wid\t1
+internalScaleFixedWid\t1
+internalScaleTimeScaling\t1''' >> {output.loc}.config.tab
+
+        gotree download itol -i $tree -c {output.loc}.config.tab -o {output.loc} --format {wildcards.format}
+
+        rm {output.loc}.config.tab
+        """

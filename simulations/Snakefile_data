@@ -1,0 +1,94 @@
+import os
+
+# To run locally:
+# snakemake --snakefile Snakefile_data --keep-going --cores 7
+
+localrules: all
+
+sim_folder = os.path.abspath(os.path.join('simulations', 'phylodeep_data'))
+DATASETS = ['large', 'huge']
+REPETITIONS = list(range(100))
+
+
+rule all:
+    input:
+        expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.nwk'), i=range(100), dataset=DATASETS),
+        expand(os.path.join(sim_folder, 'huge', 'forests', 'forest.{i}.nwk'), i=range(100))
+
+
+rule prepare_phylodeep:
+    '''
+    Parses PhyloDeep data.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', 'trees.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', 'TARGET.csv'),
+    output:
+        nwk = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.nwk'), i=range(100)),
+        log = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.log'), i=range(100)),
+    params:
+        mem = 2000,
+        name = 'trees_{dataset}',
+        qos = 'fast'
+    threads: 1
+    shell:
+        """
+        python3 py/split_trees.py --in_nwk {input.nwk} --in_log {input.log} --out_nwks {output.nwk} --out_logs {output.log}
+        """
+        
+rule prepare_forest:
+    '''
+    Simulates a forest.
+    '''
+    input:
+        log = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.log'),
+    output:
+        nwk = os.path.join(sim_folder, '{dataset}', 'forests', 'forest.{i}.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', 'forests', 'forest.{i}.log'),
+    params:
+        mem = 2000,
+        name = 'forest_{dataset}_{i}',
+        qos = 'fast'
+    threads: 1
+    shell:
+        """
+        tips=`tail -n 1 {input.log} | awk '{{ print $1 }}'`
+        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
+        mu=`tail -n 1 {input.log} | awk '{{ print $5 }}'`
+        la=`tail -n 1 {input.log} | awk '{{ print $6 }}'`
+        psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
+        p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
+
+        export PYTHONPATH=/home/azhukova/projects/bde:/home/azhukova/projects/treesimulator:/home/azhukova/projects/bde/likelihood:/home/azhukova/projects/treesimulator/tests:/home/azhukova/projects/treesimulator/treesimulator
+        python3 py/main_simulate_forest.py --tips $tips --T $T \
+        --mu $mu --la $la --psi $psi --p $p \
+        --nwk {output.nwk} --log {output.log}
+        """
+
+rule prepare_huge_tree:
+    '''
+    Simulates a tree.
+    '''
+    input:
+        log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
+    output:
+        nwk = os.path.join(sim_folder, 'huge', 'trees', 'tree.{i}.nwk'),
+        log = os.path.join(sim_folder, 'huge', 'trees', 'tree.{i}.log'),
+    params:
+        mem = 2000,
+        name = 'tree_huge_{i}',
+        qos = 'fast'
+    threads: 1
+    shell:
+        """
+        tips=`tail -n 1 {input.log} | awk '{{ print $1 }}'`
+        mu=`tail -n 1 {input.log} | awk '{{ print $5 }}'`
+        la=`tail -n 1 {input.log} | awk '{{ print $6 }}'`
+        psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
+        p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
+
+        export PYTHONPATH=/home/azhukova/projects/bde:/home/azhukova/projects/treesimulator:/home/azhukova/projects/bde/likelihood:/home/azhukova/projects/treesimulator/tests:/home/azhukova/projects/treesimulator/treesimulator
+        python3 py/main_simulate_forest.py --tips 5000 \
+        --mu $mu --la $la --psi $psi --p $p \
+        --nwk {output.nwk} --log {output.log}
+        """

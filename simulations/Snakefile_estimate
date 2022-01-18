@@ -1,0 +1,155 @@
+import os
+
+# To run locally:
+# snakemake --snakefile Snakefile_estimate --keep-going --cores 7
+
+localrules: all
+
+sim_folder = os.path.abspath(os.path.join('simulations', 'phylodeep_data'))
+DATASETS = ['large', 'huge']
+REPETITIONS = list(range(100))
+PLANTS = ['tree', 'forest']
+
+rule all:
+    input:
+        expand(os.path.join(sim_folder, '{dataset}', 'errors.png'), dataset=DATASETS)
+
+
+rule combine_estimates:
+    '''
+    Combine estimates.
+    '''
+    input:
+        log = expand(os.path.join(sim_folder, '{{dataset}}', '{type}s', '{type}.{i}.log'), i=REPETITIONS, type=['tree']),
+        est_p = expand(os.path.join(sim_folder, '{{dataset}}', '{type}s', '{type}.{i}.estimate_p_fixed'), i=REPETITIONS, type=['tree']),
+        est_b = os.path.join(sim_folder, '{dataset}', 'BEAST2.csv'),
+        est_dl = os.path.join(sim_folder, '{dataset}', 'CNN_CBLV.csv'),
+        est_b_ci = os.path.join(sim_folder, '{dataset}', 'BEAST2_CI.csv'),
+        est_dl_ci = os.path.join(sim_folder, '{dataset}', 'CNN_CBLV_CI.csv')
+    output:
+        tab = os.path.join(sim_folder, '{dataset}', 'estimates.tab'),
+    params:
+        mem = 2000,
+        name = 'estimates',
+        qos = 'fast',
+    threads: 1
+    shell:
+        """
+        python3 py/main_summary_table.py --real {input.log} \
+        --estimated_p_fixed {input.est_p} \
+        --estimated_beast2 {input.est_b} --estimated_dl {input.est_dl} \
+        --estimated_beast2_CI {input.est_b_ci} --estimated_dl_CI {input.est_dl_ci} \
+        --tab {output.tab}
+        """
+
+rule combine_huge_estimates:
+    '''
+    Combine estimates.
+    '''
+    input:
+        log = expand(os.path.join(sim_folder, 'huge', '{type}s', '{type}.{i}.log'), i=REPETITIONS, type=PLANTS),
+        est_p = expand(os.path.join(sim_folder, 'huge', '{type}s', '{type}.{i}.estimate_p_fixed'), i=REPETITIONS, type=PLANTS),
+    output:
+        tab = os.path.join(sim_folder, 'huge', 'estimates.tab'),
+    params:
+        mem = 2000,
+        name = 'estimates',
+        qos = 'fast',
+    threads: 1
+    shell:
+        """
+        python3 py/main_summary_table.py --real {input.log} \
+        --estimated_p_fixed {input.est_p} \
+        --tab {output.tab}
+        """
+
+rule combine_huge_stats:
+    '''
+    Calc stats.
+    '''
+    input:
+        est_f = expand(os.path.join(sim_folder, 'huge', 'forests', 'forest.{i}.estimate_naive'), i=REPETITIONS),
+        log_f = expand(os.path.join(sim_folder, 'huge', 'forests', 'forest.{i}.log'), i=REPETITIONS),
+        est_t = expand(os.path.join(sim_folder, 'huge', 'trees', 'tree.{i}.estimate_naive'), i=REPETITIONS),
+    output:
+        tab = os.path.join(sim_folder, 'huge', 'stats.tab'),
+    params:
+        mem = 2000,
+        name = 'estimates',
+        qos = 'fast',
+    threads: 1
+    shell:
+        """
+        python3 py/main_forest_vs_tree.py --forests {input.est_f} --forest_logs {input.log_f}  --trees {input.est_t} \
+        --tab {output.tab}
+        """
+
+rule plot_errors:
+    '''
+    Plots the errors.
+    '''
+    input:
+        tab = os.path.join(sim_folder, '{dataset}', 'estimates.tab'),
+    output:
+        pdf = os.path.join(sim_folder, '{dataset}', 'errors.png'),
+        tab = os.path.join(sim_folder, '{dataset}', 'errors.tab'),
+        btab = os.path.join(sim_folder, '{dataset}', 'big_errors.tab'),
+    params:
+        mem = 2000,
+        name = 'errors',
+        qos = 'fast'
+    threads: 1
+    shell:
+        """
+        python3 py/main_plot_error.py --estimates {input.tab} \
+        --tab {output.tab} --btab {output.btab} --pdf {output.pdf}
+        """
+
+rule estimate_params_naive:
+    '''
+    Estimate parameters on the simulated forest.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.nwk'),
+    output:
+        est = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.estimate_naive'),
+    params:
+        mem = 2000,
+        name = 'estimate_{type}_{i}_naive',
+        qos = 'fast'
+    threads: 1
+    shell:
+        """
+        python3 py/naive_estimator.py --nwk {input.nwk} --log {output.est}
+        """
+
+rule estimate_params_p_fixed:
+    '''
+    Estimate parameters on the simulated forest.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.log'),
+        est = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.estimate_naive'),
+    output:
+        est = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.estimate_p_fixed'),
+    params:
+        mem = 2000,
+        name = 'estimate_{type}_{i}',
+        qos = 'fast'
+    threads: 1
+    shell:
+        """
+        u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
+        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
+        p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
+        cat {input.log}
+
+        mu=`tail -n 1 {input.est} | awk '{{ print $5 }}'`
+        la=`tail -n 1 {input.est} | awk '{{ print $6 }}'`
+        psi=`tail -n 1 {input.est} | awk '{{ print $7 }}'`
+
+        optimiser/BDEI -ub 5 5 5 1 -T $T -u $u -start $mu $la $psi $p -p $p -nbdirerr 100 -d 1 -nt {threads} {input.nwk} > {output.est}
+        cat {output.est}
+        """
+
