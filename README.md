@@ -104,7 +104,7 @@ or alternatively, you could install python 3 via [conda](https://conda.io/docs/)
 Here we will create a conda environment called _pybdeienv_:
 ```bash
 conda create --name pybdeienv python=3
-source activate pybdeienv
+conda activate pybdeienv
 pip3 install setuptools
 ```
 
@@ -119,7 +119,7 @@ pip3 install pybdei
 If you installed __PyBDEI__ via conda, do not forget to first activate the dedicated environment (here named _pybdeienv_), e.g.
 
 ```bash
-source activate pybdeienv
+conda activate pybdeienv
 ```
 
 To run __PyBDEI__
