@@ -25,7 +25,7 @@ rule times:
         time = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.threads={cores}.time'), \
             i=REPETITIONS, cores=range(1, THREADS)),
     output:
-        tab = os.path.join(sim_folder, '{dataset}', 'trees', 'times.tab'),
+        tab = os.path.join(sim_folder, '{dataset}', 'times.tab'),
     params:
         mem = 2000,
         name = 'times_{dataset}',

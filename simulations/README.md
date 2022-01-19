@@ -46,7 +46,7 @@ simulated tree had n<sub>tree</sub> > 10 000 − n<sub>total</sub> sampled tips 
 
 ## Data preparation pipeline 
 
-The [Snakemake_data](Snakemake_data) contains 
+The [Snakemake_data](Snakemake_data) file contains 
 a Snakemake [[Köster *et al.*, 2012](https://doi.org/10.1093/bioinformatics/bts480)] pipeline 
 that splits the trees of the medium data set into separate files (one per tree), and generates the large data set.
 
@@ -56,3 +56,34 @@ snakemake --snakefile Snakefile_data --keep-going
 ```
 
 
+## Parameter estimation pipeline 
+
+The [Snakemake_estimate](Snakemake_estimate) file contains 
+a Snakemake pipeline that estimated the BDEI parameters (fixing ρ to the real value) 
+on the trees and forests of the medium and large data sets 
+and plots the relative errors.
+
+The estimated parameters can be found in 
+the [medium/estimates.tab](medium/estimates.tab) and [large/estimates.tab](large/estimates.tab) tables.
+
+It can be rerun as:
+```bash
+snakemake --snakefile Snakefile_estimate --keep-going 
+```
+
+#### Relative errors on the medium data set
+![Medium data set errors](medium/errors.png)
+
+#### Relative errors on the large data set
+![Medium data set errors](large/errors.png)
+
+
+## Time pipeline 
+
+The [Snakemake_time](Snakemake_time) file contains 
+a Snakemake pipeline that computes statistics on running times and numbers of iterations needed for convergence.
+
+It can be rerun as:
+```bash
+snakemake --snakefile Snakefile_time --keep-going 
+```
