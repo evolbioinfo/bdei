@@ -26,7 +26,6 @@ rule all:
     input:
         expand(os.path.join(data_dir, 'SLE.{i}.days.nwk'), i=range(N)),
         expand(os.path.join(data_dir, 'timetree.{i}.itol'), i=range(N)),
-        expand(os.path.join(data_dir, 'beast', '{i}', 'tree.nwk'), i=range(N)),
         expand(os.path.join(data_dir, 'iTOL', 'iTOL_selected.{i}.txt'), i=range(N)),
 
 
@@ -288,29 +287,6 @@ rule SLE:
         python3 py/SLE_forest.py --in_tree {input.nwk} --out_forest {output.nwk} --tab {input.mp} --date 2014.5780821917808
         """
 
-rule beast_tree:
-    '''
-    Extracts BEAST tree.
-    '''
-    input:
-        nwk = os.path.join(data_dir, 'SLE.{i,[0-9]+}.days.nwk'),
-        dates = os.path.join(data_dir, 'lsd2.dates'),
-        aln = os.path.join(data_dir, 'aln.ids.fa'),
-    output:
-        nwk = os.path.join(data_dir, 'beast', '{i}', 'tree.nwk'),
-        dates = os.path.join(data_dir, 'beast', '{i}', 'dates.tab'),
-        aln = os.path.join(data_dir, 'beast', '{i}', 'aln.fa'),
-    params:
-        mem = 1000,
-        name = 'BEAST2.{i}',
-        qos = 'fast'
-    threads: 1
-    singularity: "docker://evolbioinfo/pastml:v1.9.34"
-    shell:
-        """
-        python3 py/extract_beast.py --in_nwk {input.nwk} --out_nwk {output.nwk} \
-        --in_dates {input.dates} --out_dates {output.dates} --in_aln {input.aln} --out_aln {output.aln}
-        """
 
 rule pastml_itol:
     '''
@@ -340,7 +316,7 @@ rule pastml_itol:
         mv {params.wd}/iTOL_url.txt {output.itol}
         mv {params.wd}/iTOL_tree_id.txt  {output.treeid}
 
-#        rm -rf "{params.wd}"
+        rm -rf "{params.wd}"
         """
 
 

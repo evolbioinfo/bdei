@@ -5,15 +5,16 @@ import os
 
 localrules: all
 
-sim_folder = os.path.abspath(os.path.join('simulations', 'phylodeep_data'))
-DATASETS = ['large', 'huge']
+sim_folder = os.path.abspath('.')
+DATASETS = ['medium', 'large']
+DATASETS = ['large']
 REPETITIONS = list(range(100))
 
 
 rule all:
     input:
         expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.nwk'), i=range(100), dataset=DATASETS),
-        expand(os.path.join(sim_folder, 'huge', 'forests', 'forest.{i}.nwk'), i=range(100))
+        expand(os.path.join(sim_folder, 'large', 'forests', 'forest.{i}.nwk'), i=range(100))
 
 
 rule prepare_phylodeep:
@@ -21,14 +22,14 @@ rule prepare_phylodeep:
     Parses PhyloDeep data.
     '''
     input:
-        nwk = os.path.join(sim_folder, '{dataset}', 'trees.nwk'),
-        log = os.path.join(sim_folder, '{dataset}', 'TARGET.csv'),
+        nwk = os.path.join(sim_folder, 'medium', 'trees.nwk'),
+        log = os.path.join(sim_folder, 'medium', 'TARGET.csv'),
     output:
-        nwk = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.nwk'), i=range(100)),
-        log = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.log'), i=range(100)),
+        nwk = expand(os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.nwk'), i=range(100)),
+        log = expand(os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.log'), i=range(100)),
     params:
         mem = 2000,
-        name = 'trees_{dataset}',
+        name = 'trees_medium',
         qos = 'fast'
     threads: 1
     shell:
@@ -38,7 +39,7 @@ rule prepare_phylodeep:
         
 rule prepare_forest:
     '''
-    Simulates a forest.
+    Simulates a forest for given BDEI parameters.
     '''
     input:
         log = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.log'),
@@ -59,24 +60,22 @@ rule prepare_forest:
         psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
 
-        export PYTHONPATH=/home/azhukova/projects/bde:/home/azhukova/projects/treesimulator:/home/azhukova/projects/bde/likelihood:/home/azhukova/projects/treesimulator/tests:/home/azhukova/projects/treesimulator/treesimulator
-        python3 py/main_simulate_forest.py --tips $tips --T $T \
-        --mu $mu --la $la --psi $psi --p $p \
+        python3 py/simulate_forest.py --tips $tips --T $T --mu $mu --la $la --psi $psi --p $p \
         --nwk {output.nwk} --log {output.log}
         """
 
-rule prepare_huge_tree:
+rule prepare_large_tree:
     '''
-    Simulates a tree.
+    Simulates a tree for given BDEI parameters.
     '''
     input:
-        log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
+        log = os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.log'),
     output:
-        nwk = os.path.join(sim_folder, 'huge', 'trees', 'tree.{i}.nwk'),
-        log = os.path.join(sim_folder, 'huge', 'trees', 'tree.{i}.log'),
+        nwk = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.nwk'),
+        log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
     params:
         mem = 2000,
-        name = 'tree_huge_{i}',
+        name = 'tree_large_{i}',
         qos = 'fast'
     threads: 1
     shell:
@@ -87,8 +86,6 @@ rule prepare_huge_tree:
         psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
 
-        export PYTHONPATH=/home/azhukova/projects/bde:/home/azhukova/projects/treesimulator:/home/azhukova/projects/bde/likelihood:/home/azhukova/projects/treesimulator/tests:/home/azhukova/projects/treesimulator/treesimulator
-        python3 py/main_simulate_forest.py --tips 5000 \
-        --mu $mu --la $la --psi $psi --p $p \
+        python3 py/simulate_forest.py --tips 5000 --mu $mu --la $la --psi $psi --p $p \
         --nwk {output.nwk} --log {output.log}
         """

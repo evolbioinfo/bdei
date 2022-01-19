@@ -27,13 +27,15 @@ struct Solution {
     R mu, la, psi, p;
     R mu_min, la_min, psi_min, p_min;
     R mu_max, la_max, psi_max, p_max;
+    R cpu_time;
+    int nb_iter;
 
-    Solution(R l, R mu_, R la_, R psi_, R p_);
-    Solution(R l, R mu_, R mu_min_, R mu_max_, R la_, R la_min_, R la_max_, R psi_, R psi_min_, R psi_max_, R p_, R p_min_, R p_max_);
+    Solution(R l, R mu_, R la_, R psi_, R p_, R cpu_time_, int nb_iter_);
+    Solution(R l, R mu_, R mu_min_, R mu_max_, R la_, R la_min_, R la_max_, R psi_, R psi_min_, R psi_max_, R p_, R p_min_, R p_max_, R cpu_time_, int nb_iter_);
 };
 
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr);
+*inferParameters(const string &treename, R *x0, const R *dub, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr, int size_pool);
 
 R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R T, R u);

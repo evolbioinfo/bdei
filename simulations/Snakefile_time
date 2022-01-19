@@ -1,20 +1,20 @@
 import os
 
 # To run locally:
-# snakemake --snakefile Snakefile_time --keep-going --cores 7
+# snakemake --snakefile Snakefile_time --keep-going --cores 8
 
 localrules: all
 
-sim_folder = os.path.abspath(os.path.join('simulations', 'phylodeep_data'))
+sim_folder = os.path.abspath('.')
 REPETITIONS = list(range(100))
 THREADS = 8
-os.makedirs(os.path.join(sim_folder, 'logs'), exist_ok=True)
+DATASETS = ['medium', 'large']
+DATASETS = ['medium']
 
 
 rule all:
     input:
-        os.path.join(sim_folder, 'huge', 'trees', 'times.tab'),
-        os.path.join(sim_folder, 'large', 'trees', 'times.tab'),
+        expand(os.path.join(sim_folder, '{dataset}', 'trees', 'times.tab'), dataset=DATASETS)
 
 
 rule times:
@@ -22,7 +22,8 @@ rule times:
     Check time.
     '''
     input:
-        est_p = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.estimate_p_fixed.threads={cores}'), i=REPETITIONS, cores=range(1, THREADS)),
+        time = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.threads={cores}.time'), \
+            i=REPETITIONS, cores=range(1, THREADS)),
     output:
         tab = os.path.join(sim_folder, '{dataset}', 'trees', 'times.tab'),
     params:
@@ -33,8 +34,7 @@ rule times:
     singularity: "docker://evolbioinfo/python-evol:v3.6richer"
     shell:
         """
-        python3 py/main_time.py --est {input.est_p} \
-        --tab {output.tab} --cores
+        python3 py/time.py --time {input.time} --tab {output.tab} --cores
         """
 
 rule estimate_params_p_fixed_threads:
@@ -44,28 +44,22 @@ rule estimate_params_p_fixed_threads:
     input:
         nwk = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.nwk'),
         log = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.log'),
-        est = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.estimate_naive'),
     output:
-        est = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{{i}}.estimate_p_fixed.threads={cores}'), cores=range(1, THREADS)),
+        time = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{{i}}.threads={cores}.time'), cores=range(1, THREADS)),
     params:
         mem = 2000,
         name = 'estimate_parallel_{dataset}_{i}',
         qos = 'fast',
-        pattern = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.estimate_p_fixed.threads=$th'),
+        pattern = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.threads=$th.time'),
     threads: THREADS
     shell:
         """
         u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
-        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
         cat {input.log}
 
-        mu=`tail -n 1 {input.est} | awk '{{ print $5 }}'`
-        la=`tail -n 1 {input.est} | awk '{{ print $6 }}'`
-        psi=`tail -n 1 {input.est} | awk '{{ print $7 }}'`
-
         for th in $(seq 1 {threads})
         do
-            optimiser/BDEI -ub 5 5 5 1 -T $T -start $mu $la $psi $p -p $p -nt $th {input.nwk} | tee {params.pattern}
+            bdei_infer -u $u --p $p -t $th --nwk {input.nwk} --time_log {params.pattern}
         done
         """

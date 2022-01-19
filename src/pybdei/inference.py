@@ -35,22 +35,32 @@ def main():
                               help="Number of repetitions for CI calculation (the higher-the more precise). "
                                    "If not specified, CIs will not be calculated.",
                               type=int)
-    result_group.add_argument('--log', required=False, default=None, type=str,
+    result_group.add_argument('--log', default=None, type=str,
                               help="Path to the output file where to write the estimates. "
                                    "If not given, the estimates will only be printed in the stdout")
+    result_group.add_argument('--time_log', default=None, type=str,
+                              help="Path to the output file where to write the time. "
+                                   "If not given, the time will only be printed in the stdout")
+
+    parser.add_argument('-t', '--threads', help="number of threads for parallelization.", type=int, default=1)
 
     params = parser.parse_args()
-    res = infer(**vars(params))
+    res, time = infer(**vars(params))
     print(res)
+    print(time)
     if params.log:
         with open(params.log, 'w+') as f:
-            f.write('mu\tmu_CI\tla\tla_CI\tpsi\tpsi_CI\tp\tp_CI\n'
+            f.write('mu\tmu_CI\tla\tla_CI\tpsi\tpsi_CI\tp\tp_CI\tR_naught\tincubation_period\tinfectious_time\n'
                     .format('\tmu_CI' if params.CI_repetitions else '',
                             '\tla_CI' if params.CI_repetitions else '',
                             '\tpsi_CI' if params.CI_repetitions else '',
                             '\tp_CI' if params.CI_repetitions else ''))
-            f.write('{mu}\t{mu_CI}\t{la}\t{la_CI}\t{psi}\t{psi_CI}\t{p}\t{p_CI}\n'
+            f.write('{mu}\t{mu_CI}\t{la}\t{la_CI}\t{psi}\t{psi_CI}\t{p}\t{p_CI}\t{R_naught}\t{incubation_period}\t{infectious_time}\n'
                     .format(**dict(zip(res._fields, res))))
+    if params.time_log:
+        with open(params.time_log, 'w+') as f:
+            f.write('{}\n'.format('\t'.join(time._fields)))
+            f.write('{}\n'.format('\t'.join('{}'.format(_) for _ in time)))
 
 
 if '__main__' == __name__:

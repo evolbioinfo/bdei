@@ -25,32 +25,6 @@ rule all:
     input:
         os.path.join(ebola_folder, 'estimates.tab'),
 
-
-rule estimate_params_mu:
-    '''
-    Estimate parameters on the simulated forest.
-    -ub {wildcards.mu} 0.6 0.2 0.5
-
-    Case count for July 31 on https://www.cdc.gov/vhf/ebola/history/2014-2016-outbreak/case-counts.html
-
-    '''
-    input:
-        nwk = os.path.join(ebola_folder, 'SLE.{i}.days.nwk'),
-    output:
-        est = os.path.join(ebola_folder, 'SLE.{i}_N={N}_mu={mu}.estimate'),
-    params:
-        mem = 2000,
-        name = 'estimate_{i}',
-        qos = 'fast'
-    threads: 12
-    shell:
-        """
-        u=`grep -o ';' {input.nwk}  | wc -l`
-        u=$(({wildcards.N}-u))
-
-        optimiser/BDEI -start {wildcards.mu} 0.15 0.1 0.1 -ub 1 5 1 0.25 -mu {wildcards.mu} -u $u -nt {threads} -nbdirerr 100 {input.nwk} | tee {output.est}
-        """
-
 rule estimate_params_psi:
     '''
     Estimate parameters on the simulated forest.
@@ -74,27 +48,6 @@ rule estimate_params_psi:
         u=$(({wildcards.N}-u))
 
         optimiser/BDEI -start 0.2 0.15 {wildcards.psi} 0.05 -psi {wildcards.psi} -u $u -nt {threads} -nbdirerr 100 {input.nwk} | tee {output.est}
-        """
-
-rule estimate_params_p:
-    '''
-    Estimate parameters on the simulated forest.
-    '''
-    input:
-        nwk = os.path.join(ebola_folder, 'SLE.{i}.days.nwk'),
-    output:
-        est = os.path.join(ebola_folder, 'SLE.{i}_p={p}.estimate'),
-    params:
-        mem = 2000,
-        name = 'estimate_{i}',
-        qos = 'fast'
-    threads: 12
-    shell:
-        """
-        u=`grep -o ';' {input.nwk}  | wc -l`
-        u=$((533-u))
-
-        optimiser/BDEI -start 0.2 0.15 0.1 {wildcards.p} -ub 1 5 1 0.25 -p {wildcards.p} -u $u -nt {threads} -nbdirerr 100 {input.nwk} | tee {output.est}
         """
 
 rule combine_estimates:

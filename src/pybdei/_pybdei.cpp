@@ -62,9 +62,9 @@ static PyObject *_pybdei_infer(PyObject *self, PyObject *args, PyObject *kwargs)
     double *ubs = (double*)PyArray_DATA(ubarray_arr);
 
     // Call the C++ functions to infer parameters
-    Solution sol = *inferParameters(treename, ts, ubs, mu, la, psi, p, T, u, nbiter);
+    Solution sol = *inferParameters(treename, ts, ubs, mu, la, psi, p, T, u, nbiter, nt);
 
-    PyObject *pysol=PyList_New(13);
+    PyObject *pysol=PyList_New(15);
     PyList_SetItem(pysol, 0, Py_BuildValue("d", sol.mu));
     PyList_SetItem(pysol, 1, Py_BuildValue("d", sol.la));
     PyList_SetItem(pysol, 2, Py_BuildValue("d", sol.psi));
@@ -83,6 +83,10 @@ static PyObject *_pybdei_infer(PyObject *self, PyObject *args, PyObject *kwargs)
     PyList_SetItem(pysol, 11, Py_BuildValue("d", sol.p_max));
 
     PyList_SetItem(pysol, 12, Py_BuildValue("d", sol.likelihood));
+
+    PyList_SetItem(pysol, 13, Py_BuildValue("d", sol.cpu_time));
+
+    PyList_SetItem(pysol, 14, Py_BuildValue("i", sol.nb_iter));
 
     // Clean up
     Py_DECREF(startarray);

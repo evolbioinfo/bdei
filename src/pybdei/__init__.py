@@ -1,3 +1,4 @@
+import os
 import shutil
 from collections import namedtuple
 
@@ -7,7 +8,9 @@ import numpy as np
 from ete3 import Tree
 
 
-BDEI_result = namedtuple('BDEI_result', ['mu', 'la', 'psi', 'p', 'mu_CI', 'la_CI', 'psi_CI', 'p_CI', 'loglikelihood'])
+BDEI_result = namedtuple('BDEI_result', ['mu', 'la', 'psi', 'p', 'mu_CI', 'la_CI', 'psi_CI', 'p_CI',
+                                         'R_naught', 'incubation_period', 'infectious_time'])
+BDEI_time = namedtuple('BDEI_time', ['CPU_time', 'iterations'])
 
 
 def parse_tree(nwk):
@@ -79,7 +82,7 @@ def initial_guess(forest):
     return np.array([1 / m_time, 1 / tr_time_n, 1 / s_time_n, 0.5])
 
 
-def infer(nwk, start=None, ubs=None, mu=-1, la=-1, psi=-1, p=-1, T=0.0, u=0, CI_repetitions=0, **kwargs):
+def infer(nwk, start=None, ubs=None, mu=-1, la=-1, psi=-1, p=-1, T=0.0, u=0, CI_repetitions=0, threads=1, **kwargs):
     """Infer BDEI parameters from a phylogenetic tree."""
 
     forest = parse_forest(nwk)
@@ -115,14 +118,19 @@ def infer(nwk, start=None, ubs=None, mu=-1, la=-1, psi=-1, p=-1, T=0.0, u=0, CI_
                          'Please do so, using one of the following arguments: mu, la, psi, p.')
 
     start = np.minimum(start, ubs)
-    res = _pybdei.infer(f=temp_nwk, start=start, ub=ubs, la=la, psi=psi, mu=mu, p=p, T=T, u=u, nbiter=CI_repetitions)
-    shutil.rmtree(temp_nwk, ignore_errors=True)
+    res = _pybdei.infer(f=temp_nwk, start=start, ub=ubs, la=la, psi=psi, mu=mu, p=p, T=T, u=u,
+                        nt=threads, nbiter=CI_repetitions)
+    try:
+        os.remove(temp_nwk)
+    except OSError as e:  ## if failed, report it back to the user ##
+        pass
     return BDEI_result(mu=res[0], la=res[1], psi=res[2], p=res[3],
                        mu_CI=(res[4], res[5]) if CI_repetitions > 0 else None,
                        la_CI=(res[6], res[7]) if CI_repetitions > 0 else None,
                        psi_CI=(res[8], res[9]) if CI_repetitions > 0 else None,
                        p_CI=(res[10], res[11]) if CI_repetitions > 0 else None,
-                       loglikelihood=-res[12])
+                       R_naught=res[1] / res[2], incubation_period=1 / res[0], infectious_time=1 / res[2]), \
+           BDEI_time(CPU_time=res[13], iterations=res[14])
 
 
 def get_loglikelihood(nwk, mu=None, la=None, psi=None, p=None, T=0.0, u=0, params=None, **kwargs):

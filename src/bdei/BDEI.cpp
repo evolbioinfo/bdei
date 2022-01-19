@@ -663,19 +663,26 @@ struct TreeBranch {
 };
 
 
-Solution::Solution(R l, R mu_, R mu_min_, R mu_max_, R la_, R la_min_, R la_max_, R psi_, R psi_min_, R psi_max_, R p_, R p_min_, R p_max_)
+Solution::Solution(R l,
+    R mu_, R mu_min_, R mu_max_,
+    R la_, R la_min_, R la_max_,
+    R psi_, R psi_min_, R psi_max_,
+    R p_, R p_min_, R p_max_,
+    R cpu_time_, int nb_iter_)
         : likelihood(l), mu(mu_), la(la_), psi(psi_), p(p_),
         mu_max(mu_max_), mu_min(mu_min_),
         la_max(la_max_), la_min(la_min_),
         psi_max(psi_max_), psi_min(psi_min_),
-        p_max(p_max_), p_min(p_min_) {}
+        p_max(p_max_), p_min(p_min_),
+        cpu_time(cpu_time_), nb_iter(nb_iter_) {}
 
-Solution::Solution(R l, R mu_, R la_, R psi_, R p_)
+Solution::Solution(R l, R mu_, R la_, R psi_, R p_, R cpu_time_, int nb_iter_)
         : likelihood(l), mu(mu_), la(la_), psi(psi_), p(p_),
         la_max(la_), la_min(la_),
         mu_max(mu_), mu_min(mu_),
         psi_max(psi_), psi_min(psi_),
-        p_max(p_), p_min(p_) {}
+        p_max(p_), p_min(p_),
+        cpu_time(cpu_time_), nb_iter(nb_iter_) {}
 
 struct Forest {
     vector<TreeBranch *> f;
@@ -1359,7 +1366,7 @@ void QnuCorner(int nbdata, Vvd d4, Vvd derr, Vvd corner) {
 
 }
 
-Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, string ferr, int debug) {
+Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, string ferr, int debug, R cpu_time, int nb_iter) {
     jvdoC.nnewton = 0;
     ofstream *fout = 0;
     if (ferr.size() > 0) fout = new ofstream(ferr.c_str());
@@ -1440,7 +1447,8 @@ Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, s
                         jvdoC.xopt[0], jvdoC.xopt[0] + derr[2 * 0], jvdoC.xopt[0] + derr[2 * 0 + 1],
                         jvdoC.xopt[1], jvdoC.xopt[1] + derr[2 * 1], jvdoC.xopt[1] + derr[2 * 1 + 1],
                         jvdoC.xopt[2], jvdoC.xopt[2] + derr[2 * 2], jvdoC.xopt[2] + derr[2 * 2 + 1],
-                        jvdoC.xopt[3], jvdoC.xopt[3] + derr[2 * 3], jvdoC.xopt[3] + derr[2 * 3 + 1]);
+                        jvdoC.xopt[3], jvdoC.xopt[3] + derr[2 * 3], jvdoC.xopt[3] + derr[2 * 3 + 1],
+                        cpu_time, nb_iter);
 }
 
 void ErrOpt(J_vdo &jvdoC, int nnum, int *num, double *derr, string ferr) {
@@ -1536,7 +1544,7 @@ void ErrOpt(J_vdo &jvdoC, int nnum, int *num, double *derr, string ferr) {
 
 Solution
 *inferParameters(const string &treename, const string &outname, R *x0, const R *dub, R mu, R lambda, R psi, R p, R T, R u,
-                int nbdirerr, int debug) {
+                int nbdirerr, int nt, int debug) {
 
     Solution *s = nullptr;
     int starting = 0;
@@ -1548,13 +1556,21 @@ Solution
     double eps = 1e-6;
     bool ff = 0;// for graphique
     int algo = 1, old = 0;
-    if (size_pool < 1) size_pool = thread::hardware_concurrency();
+    if (nt < 1) {
+        size_pool = thread::hardware_concurrency();
+    } else {
+        size_pool = nt;
+    }
     nlopt::algorithm thealgo[] = {nlopt::LN_NEWUOA_BOUND, nlopt::LD_MMA, nlopt::LD_LBFGS, nlopt::GN_DIRECT_L};
     random_device reng;
     rand_gen.seed(reng());
     int version = !((algo + old) > 3);
     algo = algo % 4;
     algo = min(3, max(0, algo));
+
+    R cpu_time = 0.00;
+    int nb_iter = 0;
+
     //bool with_p = ( p >=0 && p<= 1.);
 // if(with_p) x0[3]=p;
     if (debug)
@@ -1776,12 +1792,16 @@ Solution
             //       cout << " x = "<< x << endl;
             auto end = high_resolution_clock::now();
             auto duration = duration_cast<milliseconds>(end - start);
-            if (debug && ok && ntest == 1) {
-                cout << " CPUtime  = " << duration.count() / 1000.f << " s" << endl;
-                cout << "found minimum at f( mu= " << x[0] << " , la= " << x[1]
-                          << " , psi= " << x[2] << " , p= " << x[3] << " ) = "
-                          << setprecision(10) << minf << " nb iter " << jvdo.count << " / " << iloop << " / "
-                          << loop << endl;
+            if (ok && ntest == 1) {
+                cpu_time = duration.count() / 1000.f;
+                nb_iter = jvdo.count;
+                if (debug) {
+                    cout << " CPUtime  = " << cpu_time << " s" << endl;
+                    cout << "found minimum at f( mu= " << x[0] << " , la= " << x[1]
+                              << " , psi= " << x[2] << " , p= " << x[3] << " ) = "
+                              << setprecision(10) << minf << " nb iter " << nb_iter << " / " << iloop << " / "
+                              << loop << endl;
+                }
             }
 
             if (debug && iter == 1)
@@ -1831,7 +1851,7 @@ Solution
             copy(sol[0].begin(), sol[0].end(), x.begin());
             J_vdo jvdoC(vdo, vs, predefdata, u, eps, debug > 1, Js, x, Jsol[0]);
             vector<double> errb(8, 0.);
-            s = ErrRandDir(jvdoC, nbdata, num, nbdirerr, &errb[0], outname, debug);
+            s = ErrRandDir(jvdoC, nbdata, num, nbdirerr, &errb[0], outname, debug, cpu_time, nb_iter);
             auto enderr = high_resolution_clock::now();
             auto durationerr = duration_cast<milliseconds>(enderr - starterr);
             duraterr += duration_cast<duration<double>>(durationerr).count();
@@ -1868,7 +1888,7 @@ Solution
             }
             if (fout) delete fout;
         }
-        s = new Solution(Jsol[0], sol[0][0], sol[0][1], sol[0][2], sol[0][3]);
+        s = new Solution(Jsol[0], sol[0][0], sol[0][1], sol[0][2], sol[0][3], cpu_time, nb_iter);
     }
     if (ntest > 1) {
         for (int i = 0; i < ntest; ++i)
@@ -1912,8 +1932,8 @@ R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R T, R
 }
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr) {
-    return inferParameters(treename, "", x0, dub, mu, lambda, psi, p, T, u, nbdirerr, 0);
+*inferParameters(const string &treename, R *x0, const R *dub, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr, int nt) {
+    return inferParameters(treename, "", x0, dub, mu, lambda, psi, p, T, u, nbdirerr, nt, 0);
 }
 
 int main(int argc, const char *argv[]) {
@@ -2004,7 +2024,7 @@ int main(int argc, const char *argv[]) {
     }
     if (argc > ++kk) treename = argv[kk];
 
-    Solution *res = inferParameters(treename, outname, x0, dub, mu, lambda, psi, p, T, u, nbdirerr, debug);
+    Solution *res = inferParameters(treename, outname, x0, dub, mu, lambda, psi, p, T, u, nbdirerr, size_pool, debug);
     if (res) {
         return 0;
     }
