@@ -100,7 +100,7 @@ You could either install python 3 system-wide:
 sudo apt install -y python3 python3-pip python3-setuptools python3-distutils
 ```
 
-or alternatively, you could install Python3 it via [conda](https://conda.io/docs/) (make sure that conda is installed first). 
+or alternatively, you could install python 3 via [conda](https://conda.io/docs/) (make sure that conda is installed first). 
 Here we will create a conda environment called _pybdeienv_:
 ```bash
 conda create --name pybdeienv python=3
