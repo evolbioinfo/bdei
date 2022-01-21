@@ -1,0 +1,50 @@
+
+LEAST-SQUARE METHODS TO ESTIMATE RATES AND DATES - v.1.10 
+
+
+Input files:
+  i                                               Input tree file : /home/azhukova/projects/bde/ebola/SLE/rooted.tree.4.nwk
+  d                                               Input date file : /home/azhukova/projects/bde/ebola/SLE/lsd2.dates
+  p                                                Partition file : No
+  g                                               Given outgroups : No
+Output file:
+  o                                                  Output file  : /home/azhukova/projects/bde/ebola/SLE/timetree.4.wd
+Parameters:
+  a                                                     Root date : No
+  z                                                     Tips date : No
+  c                                              With constraints : Yes
+  t                                      Lower bound for the rate : 1e-10
+  v                                                With variances : Yes, use variances based on input branch lengths
+  b                              Adjusted parameter for variances : To estimate
+  r                                             Estimate the root : No
+  w                                       Given substitution rate : No
+  n                                             Multiple data set : No
+  f                                  Compute confidence intervals : Yes, sampling 1000 times
+  q                  Standard deviation of lognormal relaxed clock: 0.2 (for computing confidence intervals)
+  s                                               Sequence length : 18996
+  e                                          Exclude outlier tips : Yes, detect and exclude outliers from the analysis
+  m                   Number of sampling nodes to detect outliers : 500
+  e                       The Zscore threshold to detect outliers : 3
+  u                Min internal branch length of time scaled tree : 0.0001
+  U                Min external branch length of time scaled tree : 0
+  l                        Collapsed internal branch length limit : 0
+  D                                            Output date format : Based on input date format
+  E  Estimate rates for external and internal branches separately : No
+
+  h to print Help 
+  y to accept or type a letter to change an option (x = Exit) 
+Tree 1 
+Parameter to adjust variances was set to 0.000526427 (settable via option -b)
+Minimum branch length of time scaled tree (settable via option -u and -U): 0.0001
+*RESULTS:
+- The input dates associated with the following 39 nodes are considered as
+ outliers, so those nodes were removed from the analysis:
+ 235 485 180 1221 170 510 319 851 123 1283 214 233 249 171 252 1036 1418 1407 1490 1443 1327 667 1171 99 450 1052 1348 132 1559 27 436 766 521 504 349 365 738 789 435
+- Dating results:
+ rate 0.0161189, tMRCA 2013.32 , objective function 4.08818
+- Results with confidence intervals:
+ rate 0.0161189 [0.0157396; 0.0165668], tMRCA 2013.32 [2013.11; 2013.5], objective function 4.08818
+
+*********************************************************
+
+TOTAL ELAPSED TIME: 343.585 seconds

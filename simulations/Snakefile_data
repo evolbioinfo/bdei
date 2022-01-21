@@ -1,7 +1,7 @@
 import os
 
 # To run locally:
-# snakemake --snakefile Snakefile_data --keep-going --cores 7
+# snakemake --snakefile Snakefile_data --keep-going --cores 4
 
 localrules: all
 

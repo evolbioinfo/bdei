@@ -1,53 +1,46 @@
 import os
 
 # To run locally:
-# snakemake --snakefile Snakefile_estimate --keep-going --cores 7 --config folder=. --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
+# snakemake --snakefile Snakefile_estimate --keep-going --cores 7 --config folder=.
 
-
-"""
-incubation period is 2-21 days [WHO] => mu \in [0.04, 0.5], start at 0.2
-infectious period is 2.58 days (median; 95% HPD 1.24-6.98) [Stadler] => psi \in [0.1, 1], start at 0.25
-R0 is 1-3 => lambda \in [0.06, 0.51], start at 0.15
-p \in [0.01, 0.2], start at 0.05
-"""
 
 localrules: all
 
 folder = os.path.abspath(config["folder"])
-ebola_folder = os.path.join(folder, 'ebola', 'SLE')
+ebola_folder = os.path.join(folder, 'data', 'SLE')
 IS=range(10)
-#MUS = [1/2, 1/7, 1/21]
-PSIS = [1/2.58, 1/5]
-#PS = [0.05, 0.1, 0.15, 0.2]
+ITS = [2.58, 5]
 Ns = [533, 800]
+#IS=[5]
+#ITS = [5]
+#Ns = [800]
 
 rule all:
     input:
         os.path.join(ebola_folder, 'estimates.tab'),
 
-rule estimate_params_psi:
+rule estimate_params_it:
     '''
     Estimate parameters on the simulated forest.
-    -ub {wildcards.mu} 0.6 0.2 0.5
-
-    -ub 1 5 1 0.25
-
     '''
     input:
         nwk = os.path.join(ebola_folder, 'SLE.{i}.days.nwk'),
     output:
-        est = os.path.join(ebola_folder, 'SLE.{i}_N={N}_psi={psi}.estimate'),
+        est = os.path.join(ebola_folder, 'SLE.{i}_N={N}_it={it}.est'),
+        time = os.path.join(ebola_folder, 'SLE.{i}_N={N}_it={it}.time'),
     params:
         mem = 2000,
         name = 'estimate_{i}',
         qos = 'fast'
-    threads: 12
+    threads: 3
     shell:
         """
+        N=800
         u=`grep -o ';' {input.nwk}  | wc -l`
         u=$(({wildcards.N}-u))
+        psi=`bc -l <<< '1/{wildcards.it}'`
 
-        optimiser/BDEI -start 0.2 0.15 {wildcards.psi} 0.05 -psi {wildcards.psi} -u $u -nt {threads} -nbdirerr 100 {input.nwk} | tee {output.est}
+        bdei_infer --psi $psi -u $u --threads {threads} -c 100 --nwk {input.nwk} --log {output.est} --time_log {output.time}
         """
 
 rule combine_estimates:
@@ -55,17 +48,19 @@ rule combine_estimates:
     Combine estimates.
     '''
     input:
-        est = expand(os.path.join(ebola_folder, 'SLE.{i}_{N_setting}_{setting}.estimate'), N_setting=['N=' + str(_) for _ in Ns], setting=['psi=' + str(_) for _ in PSIS], i=IS),
+        nwk = expand(os.path.join(ebola_folder, 'SLE.{i}.days.nwk'), i=IS),
+        est = expand(os.path.join(ebola_folder, 'SLE.{i}_{N_setting}_{setting}.est'), N_setting=['N=' + str(_) for _ in Ns], setting=['it=' + str(_) for _ in ITS], i=IS),
+        times = expand(os.path.join(ebola_folder, 'SLE.{i}_{N_setting}_{setting}.time'), N_setting=['N=' + str(_) for _ in Ns], setting=['it=' + str(_) for _ in ITS], i=IS),
     output:
         tab = os.path.join(ebola_folder, 'estimates.tab'),
+        time = os.path.join(ebola_folder, 'estimates.time'),
     params:
         mem = 2000,
         name = 'estimates',
         qos = 'fast',
-        labels = expand('{i}_{N_setting}_{setting}', N_setting=['N=' + str(_) for _ in Ns], setting=['psi=' + str(_) for _ in PSIS], i=IS),
+        labels = expand('{i}_{N_setting}_{setting}', N_setting=['N=' + str(_) for _ in Ns], setting=['ts=' + str(_) for _ in ITS], i=IS),
     threads: 1
     shell:
         """
-        python3 py/main_summary_Ebola.py --estimated_from_naive {input.est} \
-        --labels {params.labels} --tab {output.tab}
+        python3 py/summary_table.py --forests {input.nwk} --estimates {input.est} --labels {params.labels} --tab {output.tab} --times {input.times} --time {output.time}
         """
