@@ -725,32 +725,39 @@ Forest::Forest(const Forest &F, normal_distribution<double> &sigma)
 }
 
 
-TreeBranch *Read(ifstream &f) {
-    char cass[] = ",)";
+TreeBranch *Read(ifstream &f, int i) {
     TreeBranch *p = 0;
     int c = f.peek();
     if (c == EOF) return 0;
     p = new TreeBranch;
     if (c == '(') {
-        char c = f.get();
+        char cass[] = ",)";
+        c = f.get();
         for (int step = 0; step < 2; ++step) {
-            p->b[step] = Read(f);
+            p->b[step] = Read(f, 2 * i + step);
             c = f.get();
             assert(c == cass[step]);
         }
-    } else if (isdigit(c)) {
-        // read tip name into p->id
-        f >> p->id;
-    } else { assert(0); }
+        c = f.get();
+        while ((c != ':') && (c != ';')) {
+            // read internal node's name and ignore it
+            c = f.get();
+        }
+    } else {
+        while ((c != ':') && (c != ';')) {
+            // ignore the id in the newick file
+            c = f.get();
+        }
+        // set tip id
+        p->id = i;
+    }
 
-    c = f.get();
-    if (c != ';')
-    {
-        assert(c == ':');
+    if (c == ':') {
         // read branch length into p->value
         f >> p->value;
         // cout << p->id << " : " << p->value << endl;
     } else {
+        assert(c == ';');
         // if the root branch length is not specified, set it to zero
         p->value = 0;
     }
@@ -777,7 +784,7 @@ Forest::Forest(string fn)
     TreeBranch *p = 0;
     do {
         if (debug > 3) cout << " read tree " << f.size() << " ";
-        p = Read(ff);
+        p = Read(ff, 1);
         if (debug > 3) cout << p << endl;
 
         if (p) {
