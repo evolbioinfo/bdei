@@ -82,7 +82,7 @@ def initial_guess(forest):
     return np.array([1 / m_time, 1 / tr_time_n, 1 / s_time_n, 0.5])
 
 
-def infer(nwk, start=None, ubs=None, mu=-1, la=-1, psi=-1, p=-1, T=0.0, u=0, CI_repetitions=0, threads=1, **kwargs):
+def infer(nwk, start=None, upper_bounds=None, mu=-1, la=-1, psi=-1, p=-1, T=0.0, u=0, CI_repetitions=0, threads=1, **kwargs):
     """Infer BDEI parameters from a phylogenetic tree."""
 
     forest = parse_forest(nwk)
@@ -94,35 +94,39 @@ def infer(nwk, start=None, ubs=None, mu=-1, la=-1, psi=-1, p=-1, T=0.0, u=0, CI_
     elif isinstance(start, BDEI_result):
         start = np.array([start.mu, start.la, start.psi, start.p])
 
-    if ubs is None:
-        ubs = np.array([np.inf, np.inf, np.inf, 1])
-    elif isinstance(ubs, BDEI_result):
-        ubs = np.array([ubs.mu, ubs.la, ubs.psi, ubs.p])
+    if upper_bounds is None:
+        upper_bounds = np.array([np.inf, np.inf, np.inf, 1])
+    elif isinstance(upper_bounds, BDEI_result):
+        upper_bounds = np.array([upper_bounds.mu, upper_bounds.la, upper_bounds.psi, upper_bounds.p])
 
     something_is_fixed = False
     if mu >= 0:
-        ubs[0] = mu
+        upper_bounds[0] = mu
+        start[0] = mu
         something_is_fixed = True
     if la >= 0:
-        ubs[1] = la
+        upper_bounds[1] = la
+        start[1] = la
         something_is_fixed = True
     if psi >= 0:
-        ubs[2] = psi
+        upper_bounds[2] = psi
+        start[2] = psi
         something_is_fixed = True
     if 0 < p <= 1:
-        ubs[3] = p
+        upper_bounds[3] = p
+        start[3] = p
         something_is_fixed = True
 
     if not something_is_fixed:
         raise ValueError('To be identifiable, the BDEI model needs one of its parameters to be fixed. '
                          'Please do so, using one of the following arguments: mu, la, psi, p.')
 
-    start = np.minimum(start, ubs)
-    res = _pybdei.infer(f=temp_nwk, start=start, ub=ubs, la=la, psi=psi, mu=mu, p=p, T=T, u=u,
+    start = np.minimum(start, upper_bounds)
+    res = _pybdei.infer(f=temp_nwk, start=start, ub=upper_bounds, mu=mu, la=la, psi=psi, p=p, T=T, u=u,
                         nt=threads, nbiter=CI_repetitions)
     try:
         os.remove(temp_nwk)
-    except OSError as e:  ## if failed, report it back to the user ##
+    except OSError:
         pass
     return BDEI_result(mu=res[0], la=res[1], psi=res[2], p=res[3],
                        mu_CI=(res[4], res[5]) if CI_repetitions > 0 else None,

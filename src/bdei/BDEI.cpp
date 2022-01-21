@@ -732,29 +732,29 @@ TreeBranch *Read(ifstream &f) {
     if (c == EOF) return 0;
     p = new TreeBranch;
     if (c == '(') {
-        //cout << "("<< endl;
         char c = f.get();
         for (int step = 0; step < 2; ++step) {
-            c = f.peek();
             p->b[step] = Read(f);
             c = f.get();
             assert(c == cass[step]);
         }
-    } else if (isdigit(c))
+    } else if (isdigit(c)) {
+        // read tip name into p->id
         f >> p->id;
-    else { assert(0); }
+    } else { assert(0); }
 
     c = f.get();
-    // cout << c << " " << char(c) << endl;
-    if (c != ';')// for tree not forest..
+    if (c != ';')
     {
         assert(c == ':');
+        // read branch length into p->value
         f >> p->value;
-    } else
-        p->value = 0; // Tree
+        // cout << p->id << " : " << p->value << endl;
+    } else {
+        // if the root branch length is not specified, set it to zero
+        p->value = 0;
+    }
     return p;
-
-
 }
 
 void Print(ostream &f, TreeBranch *tn, int lvl = 0) {
@@ -783,13 +783,16 @@ Forest::Forest(string fn)
         if (p) {
             f.push_back(p);
             T = max(T, SetTime(p, 0, nt, ni));
-            if (!p->value) {
-                assert(f.size() == 1); // a Tree not a forest;
-                break;
+            if (p->value) {
+                // have not yet read the ;
+                assert(ff.get() == ';');
             }
-            assert(ff.get() == ';');
-            assert(ff.get() == '\n');
-
+            // skip any whitespaces, newlines etc. till the next tree start or the EOF
+            int c = ff.peek();
+            while((c != '(') && (c != EOF)) {
+                ff.get();
+                c = ff.peek();
+            }
         }
     } while (p);
     if (debug)
@@ -1544,7 +1547,9 @@ void ErrOpt(J_vdo &jvdoC, int nnum, int *num, double *derr, string ferr) {
 
 Solution
 *inferParameters(const string &treename, const string &outname, R *x0, const R *dub, R mu, R lambda, R psi, R p, R T, R u,
-                int nbdirerr, int nt, int debug) {
+                int nbdirerr, int nt, int debug_) {
+
+    debug=debug_;
 
     Solution *s = nullptr;
     int starting = 0;

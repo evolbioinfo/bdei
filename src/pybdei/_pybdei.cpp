@@ -31,7 +31,7 @@ static PyObject *_pybdei_infer(PyObject *self, PyObject *args, PyObject *kwargs)
     double psi = -1;
     double T = 0;
     int u = 0;
-    int nt = 1;
+    int nt = 0;
 
     PyObject *startobj, *ubobj;
 

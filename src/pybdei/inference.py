@@ -26,8 +26,16 @@ def main():
     parameter_group.add_argument('--psi', default=-1, type=float,
                                   help="Value to fix BDEI removal rate psi. "
                                        "If not given, will be estimated.")
-    parameter_group.add_argument('--p', default=0, type=float,
+    parameter_group.add_argument('--p', default=-1, type=float,
                                   help="Value to fix BDEI sampling probability. "
+                                       "If not given, will be estimated.")
+    parameter_group.add_argument('--start', default=None, nargs=4, type=float,
+                                  help="Starting values for parameter optimisation, "
+                                       "should be 4 values in the following order: mu, lambda, psi, p. "
+                                       "If not given, will be estimated.")
+    parameter_group.add_argument('--upper_bounds', default=None, nargs=4, type=float,
+                                  help="Upper bound on parameter values for parameter optimisation, "
+                                       "should be in the following order: mu, lambda, psi, p. "
                                        "If not given, will be estimated.")
 
     result_group = parser.add_argument_group('output-related arguments')
