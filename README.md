@@ -12,16 +12,15 @@ parameters as the basic reproduction number R<sub>0</sub>, incubation period and
 from a phylogenetic tree (a genealogy of pathogen sequences). 
 
 This implementation of the BDEI model solves the computational bottlenecks (due to high complexity of differential equations used in phylodynamics models,
-previous implementations [[Stadler and Bonhoeffer 2013](https://royalsocietypublishing.org/doi/10.1098/rstb.2012.0198), 
-[Barido-Sottani _et al._ 2018](https://www.biorxiv.org/content/10.1101/440982v1)] sometimes suffered from numerical instability and were only applicable to medium datasets of <500 samples). 
+previous implementations [[Stadler and Bonhoeffer 2013](https://royalsocietypublishing.org/doi/10.1098/rstb.2012.0198) and [Barido-Sottani _et al._ 2018](https://doi.org/10.1101/440982) ] sometimes suffered from numerical instability and were only applicable to medium datasets of <500 samples). 
 Our fast and accurate estimator is applicable to very large datasets (10, 000 samples) allowing phylodynamics to
 catch up with pathogen sequencing efforts.
 
 #### Article
 
-Anna Zhukova, Frédéric Hecht, Yvon Maday, and Olivier Gascuel. __Fast and accurate maximum likelihood estimation
+A Zhukova, F Hecht, Y Maday, and O Gascuel. *Fast and accurate maximum likelihood estimation
 of Birth-Death Exposed-Infectious (BDEI) epidemiological
-model from phylogenetic trees__ _(in prep.)_
+model from phylogenetic trees* _(in prep.)_
 
 # Input data
 As an input, one needs to provide a **rooted** phylogenetical tree in [newick](https://en.wikipedia.org/wiki/Newick_format) format,
@@ -34,11 +33,12 @@ _(can be fixed via the --la argument)_,
 (e.g. due to healing, death or starting a treatment) _(can be fixed via the --psi argument)_,
 * ρ – sampling probability (upon removal) _(can be fixed via the --p argument)_.
 
+
 # Installation
 
 There are 4 alternative ways to run __PyBDEI__ on your computer: 
 with [docker](https://www.docker.com/community-edition), 
-[singularity](https://www.sylabs.io/singularity/),
+[singularity](https://www.sylabs.io/singularity),
 in python3 (only on linux systems), or via command line (only on linux systems, requires installation with python3).
 
 ## Run with docker
@@ -140,20 +140,17 @@ bdei_infer -h
 ```
 
 ### Basic usage in python3
-```python3
+
+```python
 from pybdei import infer
-
 # Path to the tree in newick format
-tree = "~/Downloads/tree.nwk"
-
+tree = "tree.nwk"
 result, time = infer(nwk=tree, p=0.3, CI_repetitions=100)
-
 print('Inferred transition rate is', result.mu, result.mu_CI)
 print('Inferred transmission rate is', result.la, result.la_CI)
 print('Inferred removal rate is', result.psi, result.psi_CI)
 print('Inferred reproductive number is', result.R_naught)
 print('Inferred incubation period is', result.incubation_period)
 print('Inferred infectious time is', result.infectious_time)
-
-print('Converged in {} s and {} iterations'.format(time.CPU_time, time.iterations))
+print('Converged in', time.CPU_time, 's and', time.iterations, 'iterations')
 ```

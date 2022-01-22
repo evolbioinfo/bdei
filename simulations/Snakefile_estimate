@@ -7,7 +7,6 @@ localrules: all
 
 sim_folder = os.path.abspath('.')
 DATASETS = ['medium', 'large']
-DATASETS = ['medium']
 REPETITIONS = list(range(100))
 PLANTS = ['tree', 'forest']
 
