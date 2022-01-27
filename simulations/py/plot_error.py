@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     real_df = df.loc[df['type'] == 'real', :]
     df = df.loc[df['type'] != 'real', :]
-    types = sorted(df['type'].unique(), key=lambda _: (_[0], len(_)))
+    types = sorted(df['type'].unique(), key=lambda _: (_[:2], len(_)))
 
     for type in types:
         mask = df['type'] == type
@@ -102,15 +102,19 @@ if __name__ == "__main__":
                     pval_abs = \
                         CompareMeans.from_data(data1=df.loc[df['type'] == type_1, '{}_error'.format(par)].apply(np.abs),
                                                data2=df.loc[df['type'] == type_2, '{}_error'.format(par)].apply(np.abs)).ztest_ind()[1]
+                    if 'forest' in type_1 or 'forest' in type_2:
+                        pval_abs = 1
                     par2types2pval[par][(type_1, type_2)] = pval_abs
 
         ERROR_COL = 'relative error'
         plot_df = pd.DataFrame(data=data, columns=['parameter', ERROR_COL, 'config'])
 
-        if n_types == 2:
-            palette = sns.color_palette("colorblind")[[5, 4, 2, 1]]
+        if 'BEAST2' not in types:
+            palette = [sns.color_palette("colorblind")[2], sns.color_palette("colorblind")[0], sns.color_palette("colorblind")[-1]]
         else:
-            palette = sns.color_palette("colorblind")
+            palette = [sns.color_palette("colorblind")[1], sns.color_palette("colorblind")[2],
+                       sns.color_palette("colorblind")[0]]
+            # palette = sns.color_palette("colorblind")
         ax = sns.swarmplot(x="parameter", y=ERROR_COL, palette=palette, data=plot_df, alpha=.8, hue="config", ax=ax,
                            dodge=True)
         ax.spines['right'].set_visible(False)
@@ -148,7 +152,7 @@ if __name__ == "__main__":
                     type_2 = types[j]
                     pval = par2types2pval[par][(type_1, type_2)]
                     if pval < 0.05:
-                        boxes.append(TextArea(s + LONG_DASH * 3 + '{:.2f}'.format(pval) + LONG_DASH * 3 + EMPTY * (n_types - j - 1),
+                        boxes.append(TextArea(s + LONG_DASH * 3 + '{:.5f}'.format(pval) + LONG_DASH * 3 + EMPTY * (n_types - j - 1),
                                               textprops=dict(color='black', ha='center', va='center',
                                                              fontsize='x-small', fontweight='bold', family='monospace')))
                     else:

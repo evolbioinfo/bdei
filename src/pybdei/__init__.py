@@ -23,7 +23,7 @@ def parse_tree(nwk):
         except:
             pass
     if not tree:
-        raise ValueError("Please make sure to use correct newick format and specifies branch lengths.")
+        raise ValueError("Please make sure to use correct newick format and to specify branch lengths.")
     if len(tree.children) > 2:
         raise ValueError("The input tree must be rooted and binary, please root your tree.")
     for _ in tree.traverse():
@@ -85,10 +85,9 @@ def initial_guess(forest):
 def infer(nwk, start=None, upper_bounds=None, mu=-1, la=-1, psi=-1, p=-1, T=0.0, u=0, CI_repetitions=0, threads=1, **kwargs):
     """Infer BDEI parameters from a phylogenetic tree."""
 
-    forest = None
+    forest = parse_forest(nwk)
     # Run bdei from module library
     if start is None:
-        forest = parse_forest(nwk)
         start = initial_guess(forest)
     elif isinstance(start, BDEI_result):
         start = np.array([start.mu, start.la, start.psi, start.p])
@@ -125,8 +124,6 @@ def infer(nwk, start=None, upper_bounds=None, mu=-1, la=-1, psi=-1, p=-1, T=0.0,
         res = _pybdei.infer(f=nwk, start=start, ub=upper_bounds, mu=mu, la=la, psi=psi, p=p, T=T, u=u,
                             nt=threads, nbiter=CI_repetitions)
     except:
-        if forest is None:
-            forest = parse_forest(nwk)
         temp_nwk = nwk + '.temp'
         save_forest(forest, temp_nwk)
         res = _pybdei.infer(f=temp_nwk, start=start, ub=upper_bounds, mu=mu, la=la, psi=psi, p=p, T=T, u=u,

@@ -64,16 +64,17 @@ if __name__ == "__main__":
         dldf = pd.read_csv(params.estimated_dl, header=0)
         dldf.index = dldf.index.map(int)
         dldf.columns = ['R_naught', 'infectious_time', 'incubation_period']
-        dldf_ci = pd.read_csv(params.estimated_dl_CI, index_col=0, header=0)
-        dldf_ci.index = dldf_ci.index.map(int)
+        if params.estimated_dl_CI:
+            dldf_ci = pd.read_csv(params.estimated_dl_CI, index_col=0, header=0)
+            dldf_ci.index = dldf_ci.index.map(int)
 
-        dldf_ci = dldf_ci[['R_naught_HPD_2_5_1000', 'R_naught_HPD_97_5_1000',
-                           'infectious_time_resc_HPD_2_5_1000', 'infectious_time_resc_HPD_97_5_1000',
-                           'incubation_time_resc_HPD_2_5_1000', 'incubation_time_resc_HPD_97_5_1000']]
-        dldf_ci.columns = ['R_naught_min', 'R_naught_max',
-                           'infectious_time_min', 'infectious_time_max',
-                           'incubation_period_min', 'incubation_period_max']
-        dldf = dldf.join(dldf_ci, how='left')
+            dldf_ci = dldf_ci[['R_naught_HPD_2_5_1000', 'R_naught_HPD_97_5_1000',
+                               'infectious_time_resc_HPD_2_5_1000', 'infectious_time_resc_HPD_97_5_1000',
+                               'incubation_time_resc_HPD_2_5_1000', 'incubation_time_resc_HPD_97_5_1000']]
+            dldf_ci.columns = ['R_naught_min', 'R_naught_max',
+                               'infectious_time_min', 'infectious_time_max',
+                               'incubation_period_min', 'incubation_period_max']
+            dldf = dldf.join(dldf_ci, how='left')
         dldf['type'] = 'PhyloDeep'
         dldf.index = dldf.index.map(lambda _: '{}.{}'.format(_, 'PhyloDeep'))
         dldf['observed_trees'] = 1

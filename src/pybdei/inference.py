@@ -26,7 +26,7 @@ def main():
     parameter_group.add_argument('--psi', default=-1, type=float,
                                   help="Value to fix BDEI removal rate psi. "
                                        "If not given, will be estimated.")
-    parameter_group.add_argument('--p', default=-1, type=float,
+    parameter_group.add_argument('-p', '--p', default=-1, type=float,
                                   help="Value to fix BDEI sampling probability. "
                                        "If not given, will be estimated.")
     parameter_group.add_argument('--start', default=None, nargs=4, type=float,

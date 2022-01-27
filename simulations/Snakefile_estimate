@@ -49,6 +49,7 @@ rule combine_large_estimates:
     input:
         log = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.log'), i=REPETITIONS, type=PLANTS),
         est_p = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.est'), i=REPETITIONS, type=PLANTS),
+        est_dl = os.path.join(sim_folder, 'large', 'CNN_CBLV.csv'),
     output:
         tab = os.path.join(sim_folder, 'large', 'estimates.tab'),
     params:
@@ -58,7 +59,7 @@ rule combine_large_estimates:
     threads: 1
     shell:
         """
-        python3 py/summary_table.py --real {input.log} --estimated_p_fixed {input.est_p} --tab {output.tab}
+        python3 py/summary_table.py --real {input.log} --estimated {input.est_p} --tab {output.tab}  --estimated_dl {input.est_dl}
         """
 
 

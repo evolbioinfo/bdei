@@ -69,7 +69,7 @@ run the following command
 (here we assume that the sampling probability value is known and fixed to 0.3):
 
 ```bash
-singularity run docker://evolbioinfo/pybdei --nwk <path/to/tree_file.nwk> --p 0.3 --CI_repetitions 100 --log <path/to/file_to_store_the_estimated_parameters.tab>
+singularity run docker://evolbioinfo/bdei --nwk <path/to/tree_file.nwk> --p 0.3 --CI_repetitions 100 --log <path/to/file_to_store_the_estimated_parameters.tab>
 ```
 
 This will produce a file <path/to/file_to_store_the_estimated_parameters.tab>,
@@ -80,13 +80,13 @@ This will produce a file <path/to/file_to_store_the_estimated_parameters.tab>,
 
 To see advanced options, run
 ```bash
-singularity run docker://evolbioinfo/pybdei -h
+singularity run docker://evolbioinfo/bdei -h
 ```
 
 ## Run in python3 or command-line (for linux systems, recommended Ubuntu 21 or older versions)
 
 ### 1. Install the C++ dependencies
-You would need to install g++10 and libnlopt-cxx-dev libraries:
+You would need to install g++10 and [NLOpt](https://nlopt.readthedocs.io/en/latest/) C++ libraries:
 
 ```bash
 sudo apt update --fix-missing 

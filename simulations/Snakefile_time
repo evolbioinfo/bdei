@@ -9,12 +9,11 @@ sim_folder = os.path.abspath('.')
 REPETITIONS = list(range(100))
 THREADS = 8
 DATASETS = ['medium', 'large']
-DATASETS = ['medium']
 
 
 rule all:
     input:
-        expand(os.path.join(sim_folder, '{dataset}', 'trees', 'times.tab'), dataset=DATASETS)
+        expand(os.path.join(sim_folder, '{dataset}', 'times.tab'), dataset=DATASETS)
 
 
 rule times:

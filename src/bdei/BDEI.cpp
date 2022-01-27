@@ -755,6 +755,14 @@ TreeBranch *Read(ifstream &f, int i) {
     if (c == ':') {
         // read branch length into p->value
         f >> p->value;
+        c = f.peek();
+        // there might be some additional metadata provided after the branch length in square brackets, let's ignore it
+        if (c == '[') {
+            while (c != ']') {
+                // read internal node's name and ignore it
+                c = f.get();
+            }
+        }
         // cout << p->id << " : " << p->value << endl;
     } else {
         assert(c == ';');
