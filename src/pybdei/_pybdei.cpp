@@ -29,6 +29,7 @@ static PyObject *_pybdei_infer(PyObject *self, PyObject *args, PyObject *kwargs)
     double la = -1;
     double mu = -1;
     double psi = -1;
+    double pie = -1;
     double T = 0;
     int u = 0;
     int nt = 0;
@@ -36,11 +37,11 @@ static PyObject *_pybdei_infer(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *startobj, *ubobj;
 
     // Define keywords
-    static const char *kwlist[] = {"f", "start", "ub", "mu", "la", "psi", "p", "T", "u", "nt", "nbiter", NULL};
+    static const char *kwlist[] = {"f", "start", "ub", "pie", "mu", "la", "psi", "p", "T", "u", "nt", "nbiter", NULL};
 
     // Interpret input arguments.
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sOO|dddddiii",
-        const_cast<char**>(kwlist), &treename, &startobj, &ubobj, &mu, &la, &psi, &p, &T, &u, &nt, &nbiter)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sOO|ddddddiii",
+        const_cast<char**>(kwlist), &treename, &startobj, &ubobj, &pie, &mu, &la, &psi, &p, &T, &u, &nt, &nbiter)) {
         PyErr_Format(PyExc_ValueError, "Could not cast the input arguments.");
         return NULL;
     }
@@ -62,7 +63,7 @@ static PyObject *_pybdei_infer(PyObject *self, PyObject *args, PyObject *kwargs)
     double *ubs = (double*)PyArray_DATA(ubarray_arr);
 
     // Call the C++ functions to infer parameters
-    Solution sol = *inferParameters(treename, ts, ubs, mu, la, psi, p, T, u, nbiter, nt);
+    Solution sol = *inferParameters(treename, ts, ubs, pie, mu, la, psi, p, T, u, nbiter, nt);
 
     PyObject *pysol=PyList_New(15);
     PyList_SetItem(pysol, 0, Py_BuildValue("d", sol.mu));
@@ -102,20 +103,21 @@ static PyObject *_pybdei_likelihood(PyObject *self, PyObject *args, PyObject *kw
     double la = -1;
     double mu = -1;
     double psi = -1;
+    double pie = -1;
     double T = 0;
     int u = 0;
 
     // Define keywords
-    static const char *kwlist[] = {"f", "mu", "la", "psi", "p", "T", "u", NULL};
+    static const char *kwlist[] = {"f", "mu", "la", "psi", "p", "pie", "T", "u", NULL};
 
     // Interpret input arguments.
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sdddddi",
-        const_cast<char**>(kwlist), &treename, &mu, &la, &psi, &p, &T, &u)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sddddddi",
+        const_cast<char**>(kwlist), &treename, &mu, &la, &psi, &p, &pie, &T, &u)) {
         PyErr_Format(PyExc_ValueError, "Could not cast the input arguments.");
         return NULL;
     }
 
     // Call the C++ functions to infer parameters
-    double res = calculateLikelihood(treename, mu, la, psi, p, T, u);
+    double res = calculateLikelihood(treename, mu, la, psi, p, pie, T, u);
     return Py_BuildValue("d", res);
 }
