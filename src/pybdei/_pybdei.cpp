@@ -22,6 +22,7 @@ PyMODINIT_FUNC init_pybdei(void){
 }
 #endif
 
+
 static PyObject *_pybdei_infer(PyObject *self, PyObject *args, PyObject *kwargs) {
     char* treename;
     int nbiter = 0; //
@@ -33,15 +34,16 @@ static PyObject *_pybdei_infer(PyObject *self, PyObject *args, PyObject *kwargs)
     double T = 0;
     int u = 0;
     int nt = 0;
+    int nstarts = 1;
 
     PyObject *startobj, *ubobj;
 
     // Define keywords
-    static const char *kwlist[] = {"f", "start", "ub", "pie", "mu", "la", "psi", "p", "T", "u", "nt", "nbiter", NULL};
+    static const char *kwlist[] = {"f", "start", "ub", "pie", "mu", "la", "psi", "p", "T", "u", "nt", "nbiter", "nstarts", NULL};
 
     // Interpret input arguments.
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sOO|ddddddiii",
-        const_cast<char**>(kwlist), &treename, &startobj, &ubobj, &pie, &mu, &la, &psi, &p, &T, &u, &nt, &nbiter)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sOO|ddddddiiii",
+        const_cast<char**>(kwlist), &treename, &startobj, &ubobj, &pie, &mu, &la, &psi, &p, &T, &u, &nt, &nbiter, &nstarts)) {
         PyErr_Format(PyExc_ValueError, "Could not cast the input arguments.");
         return NULL;
     }
@@ -62,32 +64,36 @@ static PyObject *_pybdei_infer(PyObject *self, PyObject *args, PyObject *kwargs)
     double *ts = (double*)PyArray_DATA(startarray_arr);
     double *ubs = (double*)PyArray_DATA(ubarray_arr);
 
+    PyObject *pysol = NULL;
     // Call the C++ functions to infer parameters
-    Solution sol = *inferParameters(treename, ts, ubs, pie, mu, la, psi, p, T, u, nbiter, nt);
+    try {
+        Solution sol = *inferParameters(treename, ts, ubs, pie, mu, la, psi, p, T, u, nbiter, nt, nstarts);
+        pysol = PyList_New(15);
+        PyList_SetItem(pysol, 0, Py_BuildValue("d", sol.mu));
+        PyList_SetItem(pysol, 1, Py_BuildValue("d", sol.la));
+        PyList_SetItem(pysol, 2, Py_BuildValue("d", sol.psi));
+        PyList_SetItem(pysol, 3, Py_BuildValue("d", sol.p));
 
-    PyObject *pysol=PyList_New(15);
-    PyList_SetItem(pysol, 0, Py_BuildValue("d", sol.mu));
-    PyList_SetItem(pysol, 1, Py_BuildValue("d", sol.la));
-    PyList_SetItem(pysol, 2, Py_BuildValue("d", sol.psi));
-    PyList_SetItem(pysol, 3, Py_BuildValue("d", sol.p));
+        PyList_SetItem(pysol, 4, Py_BuildValue("d", sol.mu_min));
+        PyList_SetItem(pysol, 5, Py_BuildValue("d", sol.mu_max));
 
-    PyList_SetItem(pysol, 4, Py_BuildValue("d", sol.mu_min));
-    PyList_SetItem(pysol, 5, Py_BuildValue("d", sol.mu_max));
+        PyList_SetItem(pysol, 6, Py_BuildValue("d", sol.la_min));
+        PyList_SetItem(pysol, 7, Py_BuildValue("d", sol.la_max));
 
-    PyList_SetItem(pysol, 6, Py_BuildValue("d", sol.la_min));
-    PyList_SetItem(pysol, 7, Py_BuildValue("d", sol.la_max));
+        PyList_SetItem(pysol, 8, Py_BuildValue("d", sol.psi_min));
+        PyList_SetItem(pysol, 9, Py_BuildValue("d", sol.psi_max));
 
-    PyList_SetItem(pysol, 8, Py_BuildValue("d", sol.psi_min));
-    PyList_SetItem(pysol, 9, Py_BuildValue("d", sol.psi_max));
+        PyList_SetItem(pysol, 10, Py_BuildValue("d", sol.p_min));
+        PyList_SetItem(pysol, 11, Py_BuildValue("d", sol.p_max));
 
-    PyList_SetItem(pysol, 10, Py_BuildValue("d", sol.p_min));
-    PyList_SetItem(pysol, 11, Py_BuildValue("d", sol.p_max));
+        PyList_SetItem(pysol, 12, Py_BuildValue("d", sol.likelihood));
 
-    PyList_SetItem(pysol, 12, Py_BuildValue("d", sol.likelihood));
+        PyList_SetItem(pysol, 13, Py_BuildValue("d", sol.cpu_time));
 
-    PyList_SetItem(pysol, 13, Py_BuildValue("d", sol.cpu_time));
-
-    PyList_SetItem(pysol, 14, Py_BuildValue("i", sol.nb_iter));
+        PyList_SetItem(pysol, 14, Py_BuildValue("i", sol.nb_iter));
+    } catch(const std::invalid_argument& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+    }
 
     // Clean up
     Py_DECREF(startarray);
@@ -118,6 +124,11 @@ static PyObject *_pybdei_likelihood(PyObject *self, PyObject *args, PyObject *kw
     }
 
     // Call the C++ functions to infer parameters
-    double res = calculateLikelihood(treename, mu, la, psi, p, pie, T, u);
-    return Py_BuildValue("d", res);
+    try {
+        double res = calculateLikelihood(treename, mu, la, psi, p, pie, T, u);
+        return Py_BuildValue("d", res);
+    } catch(const std::invalid_argument& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return NULL;
+    }
 }

@@ -1,5 +1,4 @@
 import os
-import shutil
 from collections import namedtuple
 
 import _pybdei
@@ -39,8 +38,12 @@ def parse_tree(nwk):
 
 
 def parse_forest(nwk):
+    res = []
     with open(nwk, 'r') as f:
-        return [parse_tree(_.strip('\n') + ';') for _ in f.read().split(';')[:-1]]
+        res = [parse_tree(_.strip('\n') + ';') for _ in f.read().split(';')[:-1]]
+    if not res:
+        raise ValueError('Could not find any trees in your input file (check the newick format): {}'.format(nwk))
+    return res
 
 
 def save_tree(tree, nwk):
@@ -55,60 +58,76 @@ def save_forest(forest, nwk):
             f.write('{}\n'.format(_))
 
 
-def initial_guess(forest, mu=None, la=None, psi=None, p=None, u=0):
-    internal_es, internal_is, external_es, external_is = [], [], [], []
-    for tree in forest:
-        for n in tree.traverse('preorder'):
-            if not n.is_leaf():
-                i, e = sorted(n.children, key=lambda c: c.dist)
-                (internal_is if not i.is_leaf() else external_is).append(i)
-                (internal_es if not e.is_leaf() else external_es).append(e)
-    i_s_times = numpy.array([_.dist for _ in external_is])
-    e_s_times = numpy.array([_.dist for _ in external_es])
-    i_tr_times = numpy.array([_.dist for _ in internal_is])
-    e_tr_times = numpy.array([_.dist for _ in internal_es])
+def initial_rate_guess(forest, mu=None, la=None, psi=None):
 
-    if p and 0 < p <= 1:
-        i_s_times = sorted(i_s_times)[: max(min(len(i_s_times), 10), int(len(i_s_times) * max(p, 0.25)))]
-        e_s_times = sorted(e_s_times)[: max(min(len(e_s_times), 10), int(len(e_s_times) * max(p, 0.25)))]
+    fixed_rates = []
+    for rate in (mu, la, psi):
+        if rate and rate > 0:
+            fixed_rates.append(rate)
+    if fixed_rates:
+        avg_rate = np.average(fixed_rates)
+        min_rate = avg_rate
+        max_rate = avg_rate
+    else:
+        internal_is, external_is = [], []
+        internal_es, external_es = [], []
+        for tree in forest:
+            for n in tree.traverse('preorder'):
+                if not n.is_leaf():
+                    i, e = sorted(n.children, key=lambda c: c.dist)
+                    (internal_is if not i.is_leaf() else external_is).append(i)
+                    (internal_es if not i.is_leaf() else external_es).append(e)
+        i_s_times = numpy.array([_.dist for _ in external_is])
+        i_tr_times = numpy.array([_.dist for _ in internal_is])
+        e_s_times = numpy.array([_.dist for _ in external_es])
+        e_tr_times = numpy.array([_.dist for _ in internal_es])
+        i_s_time = numpy.median(i_s_times)
+        e_s_time = numpy.median(e_s_times)
+        # if it is a corner case when we only have tips, let's use sampling times
+        i_tr_time = numpy.median(i_tr_times) if len(i_tr_times) else i_s_time
+        e_tr_time = numpy.median(e_tr_times) if len(e_tr_times) else e_s_time
+        mu_times = []
+        if e_s_time > i_s_time:
+            mu_times.append(e_s_time - i_s_time)
+        if e_tr_time > i_tr_time:
+            mu_times.append(e_tr_time - i_tr_time)
+        mu_time = np.average(mu_times) if mu_times else min(i_s_time, i_tr_time) * 0.01
+        avg_rate = np.average([1 / i_s_time, 1 / i_tr_time, 1 / mu_time])
+        min_rate = min([1 / i_s_time, 1 / i_tr_time, 1 / mu_time])
+        max_rate = max([1 / i_s_time, 1 / i_tr_time, 1 / mu_time])
 
-    i_s_time = numpy.median(i_s_times) if (not psi or psi <= 0) else 1 / psi
-    e_s_time = max(i_s_time, numpy.median(e_s_times))
-
-    i_tr_time = numpy.median(i_tr_times) if (not la or la <= 0) else 1 / la
-    e_tr_time = max(i_tr_time, numpy.median(e_tr_times))
-
-    m_time_s = e_s_time - i_s_time
-    m_time_tr = e_tr_time - i_tr_time
-    m_time = numpy.mean([m_time_s, m_time_tr]) if (not mu or mu <= 0) else 1 / mu
-    if m_time == 0:
-        m_time = min(i_s_time, i_tr_time) * 0.1
-
-    if not p or p < 0 or p > 1:
-        hidden_transmissions = sum(1 for _ in i_tr_times if _ >= 2 * i_tr_time) \
-                               + sum(1 for _ in i_s_times if _ >= (i_tr_time + i_s_time)) + u
-        samplings = sum(1 for _ in i_s_times if _ < (i_tr_time + i_s_time))
-        p = max(0.05, samplings / (hidden_transmissions + samplings))
-
-    return np.array([1 / m_time, 1 / i_tr_time, 1 / i_s_time, p])
+    return sorted({avg_rate, min_rate, max_rate})
 
 
 def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
           mu=-1, la=-1, psi=-1, p=-1, T=0.0, u=0, CI_repetitions=0, threads=1, **kwargs):
     """Infer BDEI parameters from a phylogenetic tree."""
 
-    forest = parse_forest(nwk)
-    # Run bdei from module library
+    forest = None
 
     if isinstance(start, BDEI_result):
         start = np.array([start.mu, start.la, start.psi, start.p])
     if start is None:
-        start = initial_guess(forest, mu, la, psi, p, u)
+        forest = parse_forest(nwk)
+        if not p or p <= 0 or p >= 1:
+            rate = initial_rate_guess(forest, mu, la, psi).pop()
+            starts = [[rate, rate, rate, pp] for pp in PS]
+        else:
+            starts = [[rate, rate, rate, p] for rate in initial_rate_guess(forest, mu, la, psi)]
+    else:
+        starts = [start]
+    for s in starts:
+        s[-1] = min(0.99, max(0.001, s[-1]))
 
     if upper_bounds is None:
         upper_bounds = np.array([np.inf, np.inf, np.inf, 1])
     elif isinstance(upper_bounds, BDEI_result):
         upper_bounds = np.array([upper_bounds.mu, upper_bounds.la, upper_bounds.psi, upper_bounds.p])
+    else:
+        upper_bounds = np.array(upper_bounds)
+    if any(upper_bounds <= 0):
+        raise ValueError('Upper bound must be positive.')
+    upper_bounds[-1] = min(upper_bounds[-1], 1)
 
     if pi_E is not None and pi_E >= 0:
         if pi_E > 1:
@@ -120,25 +139,29 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
     all_is_fixed = True
     if mu >= 0:
         upper_bounds[0] = mu
-        start[0] = mu
+        for s in starts:
+            s[0] = mu
         something_is_fixed = True
     else:
         all_is_fixed = False
     if la >= 0:
         upper_bounds[1] = la
-        start[1] = la
+        for s in starts:
+            s[1] = la
         something_is_fixed = True
     else:
         all_is_fixed = False
     if psi >= 0:
         upper_bounds[2] = psi
-        start[2] = psi
+        for s in starts:
+            s[2] = psi
         something_is_fixed = True
     else:
         all_is_fixed = False
     if 0 < p <= 1:
         upper_bounds[3] = p
-        start[3] = p
+        for s in starts:
+            s[3] = p
         something_is_fixed = True
     else:
         all_is_fixed = False
@@ -148,23 +171,27 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
                          'Please do so, using one of the following arguments: mu, la, psi, p.')
     if all_is_fixed:
         raise ValueError('At least one of the following arguments: mu, la, psi, p, should be left to be optimised.')
+    starts = [np.minimum(s, upper_bounds * 0.999) for s in starts]
+    nstarts = len(starts)
+    starts = np.reshape(starts, (4 * nstarts,))
 
-    start = np.minimum(start, upper_bounds)
+    def get_res(_nwk):
+        return _pybdei.infer(f=_nwk, start=starts, ub=upper_bounds, pie=pi_E,
+                             mu=mu, la=la, psi=psi, p=p, T=T, u=u, nt=threads, nbiter=CI_repetitions, nstarts=nstarts)
 
     try:
-        res = _pybdei.infer(f=nwk, start=start, ub=upper_bounds, pie=pi_E,
-                            mu=mu, la=la, psi=psi, p=p, T=T, u=u,
-                            nt=threads, nbiter=CI_repetitions)
+        res = get_res(nwk)
     except:
         temp_nwk = nwk + '.temp'
+        if forest is None:
+            forest = parse_forest(nwk)
         save_forest(forest, temp_nwk)
-        res = _pybdei.infer(f=temp_nwk, start=start, ub=upper_bounds, pie=pi_E,
-                            mu=mu, la=la, psi=psi, p=p, T=T, u=u,
-                            nt=threads, nbiter=CI_repetitions)
+        res = get_res(temp_nwk)
         try:
             os.remove(temp_nwk)
         except OSError:
             pass
+    print(res[12])
     return BDEI_result(mu=res[0], la=res[1], psi=res[2], p=res[3],
                        mu_CI=(res[4], res[5]) if CI_repetitions > 0 else None,
                        la_CI=(res[6], res[7]) if CI_repetitions > 0 else None,
@@ -177,9 +204,6 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
 def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0.0, u=0, params=None, **kwargs):
     """Calculate loglikelihood for given BDEI parameters from a phylogenetic tree."""
 
-    forest = parse_forest(nwk)
-    temp_nwk = nwk + '.temp'
-    save_forest(forest, temp_nwk)
     if params is not None:
         if isinstance(params, BDEI_result):
             mu = params.mu
@@ -193,6 +217,16 @@ def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0.0, u=0, para
             raise ValueError('All the parameters (mu, la, psi, p) must be specified, '
                              'either via dedicated arguments or via the params argument')
 
-    res = _pybdei.likelihood(f=temp_nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, u=u)
-    shutil.rmtree(temp_nwk, ignore_errors=True)
+    try:
+        res = _pybdei.likelihood(f=nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, u=u)
+    except:
+        temp_nwk = nwk + '.temp'
+        forest = parse_forest(nwk)
+        save_forest(forest, temp_nwk)
+        res = _pybdei.likelihood(f=temp_nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, u=u)
+        try:
+            os.remove(temp_nwk)
+        except OSError:
+            pass
     return res
+

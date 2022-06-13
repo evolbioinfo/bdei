@@ -37,6 +37,16 @@ def main():
                                   help="Upper bound on parameter values for parameter optimisation, "
                                        "should be in the following order: mu, lambda, psi, p. "
                                        "If not given, will be estimated.")
+    parameter_group.add_argument('--pi_E', default=-1, type=float,
+                                  help="Frequency of E at time 0, "
+                                       "should be between 0 and 1. "
+                                       "If not given, will be estimated from the model parameters.")
+    parameter_group.add_argument('--T', default=0, type=float,
+                                  help="Total time between the tree roots and the end of the epidemic "
+                                       "(to be given if all trees start at the same time). "
+                                       "If not given, this time will be tree-specific "
+                                       "and estimated as the time between the root "
+                                       "and the last sampled tip of that tree.")
 
     result_group = parser.add_argument_group('output-related arguments')
     result_group.add_argument('-c', '--CI_repetitions', default=0,

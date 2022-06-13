@@ -16,6 +16,7 @@ int size_pool = std::thread::hardware_concurrency();
 std::mt19937_64 rand_gen;
 
 const char *algo_name[] = {"NEWUOA_BOUND", "MMA", "LBFGS", "DIRECT", 0};
+const char *BDEIParams[] = {"mu", "lambda", "psi", "p"};
 
 /*
  ODE
@@ -566,7 +567,7 @@ public:
         // R t0=T;
         while (1) {
             n++;
-            RR Pt[2], Ptt[2], Pttt[2];
+            RR Pt[2], Ptt[2];
             RR U[] = {fU(T + t, 0), fU(T + t, 1)}, dU[2], ddU[2], dddU[3];
             D2F(U, dU, ddU, dddU);// derive de U pour calcul le pas de temps
             R n2 = 0;
@@ -627,9 +628,10 @@ private: // no copy
 struct TreeBranch {
     double t;
     double value;
+    double T;
     TreeBranch *b[2];// 2 pointeur on 2 branch if existe
     int id;// id[1] == 0 => just a branch //
-    TreeBranch() : t(0), value(0), b{0, 0}, id{-1} {}
+    TreeBranch() : t(0), value(0), T(0), b{0, 0}, id{-1} {}
 
     bool internal() const {
         assert((b[0] == 0 && b[1] == 0) == (id != -1));
@@ -695,17 +697,26 @@ TreeBranch *Read(ifstream &f, int i) {
         for (int step = 0; step < 2; ++step) {
             p->b[step] = Read(f, 2 * i + step);
             c = f.get();
-            assert(c == cass[step]);
+            if (c != cass[step]) {
+                throw std::invalid_argument("Invalid newick format of the input tree(s)");
+            }
         }
         c = f.get();
-        while ((c != ':') && (c != ';')) {
+        while ((c != ':') && (c != ';') && (c != EOF)) {
             // read internal node's name and ignore it
             c = f.get();
         }
+        if (c == EOF) {
+            throw std::invalid_argument("Invalid newick format of the input tree(s)");
+        }
     } else {
-        while ((c != ':') && (c != ';')) {
+        c = f.get();
+        while ((c != ':') && (c != ';') && (c != EOF)) {
             // ignore the id in the newick file
             c = f.get();
+        }
+        if (c == EOF) {
+            throw std::invalid_argument("Invalid newick format of the input tree(s)");
         }
         // set tip id
         p->id = i;
@@ -717,14 +728,19 @@ TreeBranch *Read(ifstream &f, int i) {
         c = f.peek();
         // there might be some additional metadata provided after the branch length in square brackets, let's ignore it
         if (c == '[') {
-            while (c != ']') {
+            while ((c != ']') && (c != EOF)) {
                 // read internal node's name and ignore it
                 c = f.get();
             }
+            if (c != ']') {
+                throw std::invalid_argument("Invalid newick format of the input tree(s)");
+            }
         }
-        // cout << p->id << " : " << p->value << endl;
+//        cout << p->id << " : " << p->value << endl;
     } else {
-        assert(c == ';');
+        if (c != ';') {
+            throw std::invalid_argument("Invalid newick format of the input tree(s)");
+        }
         // if the root branch length is not specified, set it to zero
         p->value = 0;
     }
@@ -756,21 +772,24 @@ Forest::Forest(string fn)
 
         if (p) {
             f.push_back(p);
-            T = max(T, SetTime(p, 0, nt, ni));
+            p->T = SetTime(p, 0, nt, ni);
+            T = max(T, p->T);
             if (p->value) {
                 // have not yet read the ;
-                assert(ff.get() == ';');
+                if (ff.get() != ';') {
+                    throw std::invalid_argument("Invalid newick format of the input tree(s)");
+                }
             }
             // skip any whitespaces, newlines etc. till the next tree start or the EOF
             int c = ff.peek();
-            while((c != '(') && (c != EOF)) {
+            while((c != '(') && (c != EOF) && (c != ':')) {
                 ff.get();
                 c = ff.peek();
             }
         }
     } while (p);
-    if (debug)
-        cout << " n tips = " << nt << " n internal nodes  " << ni << " nb trees " << f.size() << " T = " << T << endl;
+//    if (debug)
+    cout << "Observed forest contains "  << f.size() << " tree(s) with " << nt << " tips and " << ni << " internal nodes, T=" << T << endl;
 }
 
 typedef struct {
@@ -840,6 +859,13 @@ void SetDataOde(TreeBranch *b, R T, vector<DataOde> &vdo, int lvl) {
 void SetDataOde(Forest &f, vector<DataOde> &vdo, R T) {
     for (int i = 0; i < f.size(); ++i)
         SetDataOde(f[i], T, vdo, 0);
+    //  if(debug) cout << " size of vdo: "<< vdo.size() << endl;
+}
+
+void SetDataOde(Forest &f, vector<DataOde> &vdo) {
+    for (int i = 0; i < f.size(); ++i) {
+        SetDataOde(f[i], f[i]->T, vdo, 0);
+    }
     //  if(debug) cout << " size of vdo: "<< vdo.size() << endl;
 }
 
@@ -1329,10 +1355,8 @@ void QnuCorner(int nbdata, Vvd d4, Vvd derr, Vvd corner) {
 
 }
 
-Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, string ferr, int debug, R cpu_time, int nb_iter) {
+Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, int debug, R cpu_time, int nb_iter) {
     jvdoC.nnewton = 0;
-    ofstream *fout = 0;
-    if (ferr.size() > 0) fout = new ofstream(ferr.c_str());
 
     normal_distribution<double> loi(0, 1.);
     vector<double> d(4, 0.);
@@ -1384,26 +1408,17 @@ Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, s
         } else knan++;
         kdir++;
     }
-    const char *champ[] = {"mu", "lambda", "psi", "p"};
     if (debug){
         cout << " Err on all composante .." << nnum << " n dir " << kdir << " / n loose (nan) " << knan
-             << "  aver. iter. Newton " << double(jvdoC.nnewton) / kdir << " in " << ferr << endl;
+             << "  aver. iter. Newton " << double(jvdoC.nnewton) / kdir << endl;
         for (int i = 0; i < 4; ++i) {
             std::cout.width(7);
             cout.precision(6);
-            cout << champ[i] << " = " << jvdoC.xopt[i];
+            cout << BDEIParams[i] << " = " << jvdoC.xopt[i];
             cout.precision(4);
             cout << " + [ " << derr[2 * i] << " , " << derr[2 * i + 1] << " ] " << endl;
         }
     }
-    if (fout) {
-        for (int i = 0; i < 4; ++i) {
-            *fout << champ[i] << " = " << jvdoC.xopt[i];
-            *fout << " + [ " << derr[2 * i] << " , " << derr[2 * i + 1] << " ] " << endl;
-        }
-    }
-    cout.precision(6);
-    if (fout) delete fout;
     return new Solution(-jvdoC.Jopt,
                         jvdoC.xopt[0], jvdoC.xopt[0] + derr[2 * 0], jvdoC.xopt[0] + derr[2 * 0 + 1],
                         jvdoC.xopt[1], jvdoC.xopt[1] + derr[2 * 1], jvdoC.xopt[1] + derr[2 * 1 + 1],
@@ -1413,9 +1428,8 @@ Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, s
 }
 
 Solution
-*inferParameters(const string &treename, const string &outname, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u,
-                int nbdirerr, int nt, int debug_) {
-
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u,
+                int nbdirerr, int nt, int debug_, int nStarts) {
     debug=debug_;
 
     Solution *s = nullptr;
@@ -1431,34 +1445,23 @@ Solution
     nlopt::algorithm thealgo[] = {nlopt::LN_NEWUOA_BOUND, nlopt::LD_MMA, nlopt::LD_LBFGS, nlopt::GN_DIRECT_L};
     random_device reng;
     rand_gen.seed(reng());
-    int version = !((algo + old) > 3);
     algo = algo % 4;
     algo = min(3, max(0, algo));
 
-    R cpu_time = 0.00;
-    int nb_iter = 0;
-
-    if (debug)
-        cout << " forest: " << treename
-             << " , mu " << mu << " , lambda " << lambda << " , psi " << psi << " , p " << p
-             << " , T = " << T << " u = " << u << endl;
-    R predefdata[] = {mu, lambda, psi, p};
-    vector<double> xsol(4); // to store the solution ...
-    bool xok = false;
-    int nbdata = 0;
-
-    for (int k = 0; k < 4; ++k)
-        if (predefdata[k] < 0)
-            num[nbdata++] = k;
-    assert(nbdata > 0);
-    array<R, 4> sol;
-    R Jsol;
 
     Forest forest(treename);
-    if (T < forest.T) T = forest.T;
     vector<DataOde> vdo;
     vector<tuple<double, int, int >> vs;
-    SetDataOde(forest, vdo, T);
+
+    // If T is given, assume it is the same for all trees, otherwise keep tree-specific Ts (from root till last tree's tip)
+    if (T <= 0) {
+        cout << "Using tree-specific sampling periods (between tree start and tree's last sampled tip)." << endl;
+        SetDataOde(forest, vdo);
+    } else {
+        T = max(T, forest.T);
+        cout << "Using global time " << T << " for the sampling period." << endl;
+        SetDataOde(forest, vdo, T);
+    }
 
     for (int i = 0; i < vdo.size(); ++i) {
         DataOde &vdoi = vdo[i];
@@ -1500,6 +1503,27 @@ Solution
     assert(nc == 0);
     if (debug > 1) cout << " chevauchement : " << sst / sso << " nk " << nk << " " << "/  " << vs.size() << endl;
 
+    R cpu_time = 0.00;
+    int nb_iter = 0;
+
+    if (debug)
+        cout << " forest: " << treename
+             << ", mu  = " << mu << ", lambda = " << lambda << ", psi = " << psi << ", p = " << p
+             << ", T = " << T << ", u = " << u << endl;
+    R predefdata[] = {mu, lambda, psi, p};
+    vector<double> xsol(4); // to store the solution ...
+    int nbdata = 0;
+
+    for (int k = 0; k < 4; ++k)
+        if (predefdata[k] < 0) {
+            num[nbdata++] = k;
+        } else {
+            cout << BDEIParams[k] << " value is fixed to " << predefdata[k] << endl;
+        }
+    assert(nbdata > 0);
+    array<R, 4> sol;
+    R Jsol;
+
     auto start = high_resolution_clock::now();
 
     J_vdo jvdo(vdo, vs, predefdata, pie, u, eps, debug > 1);
@@ -1517,66 +1541,73 @@ Solution
 
     opt.set_lower_bounds(lb);
     opt.set_upper_bounds(ub);
-    opt.set_initial_step(0.1);
-    opt.set_min_objective(J_vdo::wrap, &jvdo);
-    opt.set_xtol_rel(1e-5);
-    vector<double> xj(no);
 
-    for (int i = 0; i < no; ++i)
-        xj[i] = x0[num[i]];
-    if (debug) {
-        cout << "   - initial guess " << xj << " ; ";
-        cout << "   - ub : " << ub << endl;
-    }
-    double minf;
-    bool ok = false;
-    try {
-        nlopt::result result = opt.optimize(xj, minf);
-        ok = true;
-        if (debug > 1) cout << " Opt " << minf << " ; " << xj << " ," << result << endl;
-    }
-    catch (exception &e) {
-        cout << "nlopt failed: " << e.what() << endl;
-    }
+
+    double bestRes =  std::numeric_limits<double>::infinity();
     vector<double> x(4); // copy min ...
-    copy(predefdata, predefdata + 4, x.begin());
-    //         cout << " x = "<< x << endl;
-    for (int i = 0; i < no; ++i)
-        x[num[i]] = xj[i];
-    xsol = x;
-    xok = ok;
+    double minf;
+    // if there are several starting points repeat the procedure for all of them and pick the best result
+    for (int startI = 0; startI < nStarts; startI++) {
+        opt.set_initial_step(0.1);
+        opt.set_min_objective(J_vdo::wrap, &jvdo);
+        opt.set_xtol_rel(1e-5);
+        vector<double> xj(no);
+        for (int i = 0; i < no; ++i) {
+            xj[i] = x0[startI * 4 + num[i]];
+        }
+        cout << "Optimisation attempt " << startI + 1 << ":" << endl;
+        cout << "  starting values for optimised parameters: " << xj << endl;
+        cout << "  upper bounds : " << ub << endl;
+        bool ok = false;
+        try {
+            nlopt::result result = opt.optimize(xj, minf);
+            ok = true;
+            cout << "  optimised parameter values: " << xj << endl;
+            cout << "  optimised log-likelihood: " << -minf << endl;
+        }
+        catch (exception &e) {
+            cout << "  nlopt failed: " << e.what() << endl;
+        }
+        nb_iter += jvdo.count;
+        if ((minf < bestRes) && ok) {
+            bestRes = minf;
+            copy(predefdata, predefdata + 4, x.begin());
+            for (int i = 0; i < no; ++i)
+                x[num[i]] = xj[i];
+            xsol = x;
+            if (debug) {
+                cout << " CPUtime  = " << cpu_time << " s" << endl;
+                cout << "found minimum at f( mu= " << x[0] << " , la= " << x[1]
+                          << " , psi= " << x[2] << " , p= " << x[3] << " ) = "
+                          << setprecision(10) << minf << " nb iter " << nb_iter << endl;
+            }
+            vector<R> xx(no), dx(no);
+            copy(xj.begin(), xj.begin() + no, xx.begin());
+            jvdo.DJ(xx, dx);
+            if (debug) {
+                cout << "  Grad    = " << dx << " " << endl;
+                cout << "    at x  = " << x << endl;
+            }
+//            int nbound = 0;
+//            for (int i = 0; i < no; ++i) {
+//                int j = num[i];
+//                if ((x[j] < 1e-4) || (x[j] > 10) || (x[j] > dub[j] * 0.99999)) nbound++;
+//            }
+//            if (x[3] > 0.9999) nbound++;
+//
+//            if (debug) {
+//                if (nbound)
+//                    cout << " WARNING too close to bounds ( May be Wrong result !!!!!  " << nbound << ") " << endl;
+//                cout << setprecision(16) << minf << " ;" << x << " ; " << T << " ; " << u << endl;
+//            }
+            copy(x.begin(), x.end(), x0);
+        } else if (ok) {
+            break;
+        }
+    }
     auto end = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(end - start);
-    if (ok) {
-        cpu_time = duration.count() / 1000.f;
-        nb_iter = jvdo.count;
-        if (debug) {
-            cout << " CPUtime  = " << cpu_time << " s" << endl;
-            cout << "found minimum at f( mu= " << x[0] << " , la= " << x[1]
-                      << " , psi= " << x[2] << " , p= " << x[3] << " ) = "
-                      << setprecision(10) << minf << " nb iter " << nb_iter << endl;
-        }
-        vector<R> xx(no), dx(no);
-        copy(xj.begin(), xj.begin() + no, xx.begin());
-        jvdo.DJ(xx, dx);
-        if (debug) {
-            cout << "  Grad    = " << dx << " " << endl;
-            cout << "    at x  = " << x << endl;
-        }
-        int nbound = 0;
-        for (int i = 0; i < no; ++i) {
-            int j = num[i];
-            if ((x[j] < 1e-4) || (x[j] > 10) || (x[j] > dub[j] * 0.99999)) nbound++;
-        }
-        if (x[3] > 0.9999) nbound++;
-
-        if (debug) {
-            if (nbound)
-                cout << " WARNING too close to bounds ( May be Wrong result !!!!!  " << nbound << ") " << endl;
-            cout << setprecision(16) << minf << " ;" << x << " ; " << T << " ; " << u << endl;
-        }
-    }
-    copy(x.begin(), x.end(), x0);
+    cpu_time = duration.count() / 1000.f;
 
     for (int j = 0; j < 4; ++j)
         sol[j] = x[j];
@@ -1589,13 +1620,12 @@ Solution
         auto starterr = high_resolution_clock::now();
         // first
         double Jerr = khi_2_95[1];// err in on direction => 1 data  not nbdata
-
         double Js = Jsol + Jerr;
         vector<double> x(4), dir(4);
         copy(sol.begin(), sol.end(), x.begin());
         J_vdo jvdoC(vdo, vs, predefdata, pie, u, eps, debug > 1, Js, x, Jsol);
         vector<double> errb(8, 0.);
-        s = ErrRandDir(jvdoC, nbdata, num, nbdirerr, &errb[0], outname, debug, cpu_time, nb_iter);
+        s = ErrRandDir(jvdoC, nbdata, num, nbdirerr, &errb[0], debug, cpu_time, nb_iter);
         auto enderr = high_resolution_clock::now();
         duraterr += duration_cast<milliseconds>(enderr - starterr).count();
     }
@@ -1604,28 +1634,12 @@ Solution
         cout << " time ODE1 " << duratinit << "s, ( build " << duratbuild
              << "s ) ODE1+2: " << duratopt << " s " << 100 * duratinit / duratopt << " %" << "  err bound: " << duraterr
              << endl;
-    }
-    array<R, 4> moy = {0., 0., 0., 0.}, ecart = {0., 0., 0., 0.}, e95;
-
-    if (debug) {
         cout << "# cost ; mu ; la ; psi ; p ; T ; u \n";
         cout << Jsol << "  ;  " << sol[0] << " ; " << sol[1] << " ; " << sol[2] << " ;" << sol[3]
              << " ; " << T << " ; " << u << endl;
     }
-    for (int j = 0; j < 4; ++j) {
-        moy[j] += sol[j];
-    }
 
     if (nbdirerr <= 0) {
-        if (outname.size() > 0) {
-            ofstream *fout = 0;
-            fout = new ofstream(outname.c_str());
-            const char *champ[] = {"mu", "lambda", "psi", "p"};
-            for (int i = 0; i < 4; ++i) {
-                *fout << champ[i] << " = " << sol[i] << endl;
-            }
-            if (fout) delete fout;
-        }
         s = new Solution(-Jsol, sol[0], sol[1], sol[2], sol[3], cpu_time, nb_iter);
     }
     return s;
@@ -1639,22 +1653,33 @@ R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie,
 
     Forest forest(treename);
     vector<DataOde> vdo;
-    if (T < forest.T) T = forest.T;
-    SetDataOde(forest, vdo, T);
+    if (T <= 0) {
+        cout << "Using tree-specific sampling periods (between tree start and tree's last sampled tip)." << endl;
+        SetDataOde(forest, vdo);
+    } else {
+        T = max(T, forest.T);
+        cout << "Using global time " << T << " for the sampling period." << endl;
+        SetDataOde(forest, vdo, T);
+    }
 
     return -JCout(&predefdata[0], pie, u, vdo, eps);
 }
 
+
+Solution
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr, int nt, int nstarts) {
+    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, 0, nstarts);
+}
+
 Solution
 *inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr, int nt) {
-    return inferParameters(treename, "", x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, 0);
+    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, 1);
 }
 
 int main(int argc, const char *argv[]) {
     // tr -d '[0-9();.,]\n' <forest_small.nwk |wc
     //  chdir("/Users/hecht/Desktop/gdt-Covid-19/BDEI/BDEI/");
     string treename = "";
-    string outname = "";
     debug = 1;
     int nbdirerr = 0; //
     // int n = 10000;
@@ -1678,10 +1703,6 @@ int main(int argc, const char *argv[]) {
         //  cout << kk << " " << argv[kk+1] << " " << argc << endl;
         if (argc > kk + 2 && strcmp(argv[kk + 1], "-f") == 0) {
             treename = argv[kk + 2];;
-            kk += 2;
-        }
-        if (argc > kk + 2 && strcmp(argv[kk + 1], "-o") == 0) {
-            outname = argv[kk + 2];;
             kk += 2;
         }
         else if (argc > kk + 2 && strcmp(argv[kk + 1], "-p") == 0) {
@@ -1738,7 +1759,7 @@ int main(int argc, const char *argv[]) {
     }
     if (argc > ++kk) treename = argv[kk];
 
-    Solution *res = inferParameters(treename, outname, x0, dub, -1., mu, lambda, psi, p, T, u, nbdirerr, size_pool, debug);
+    Solution *res = inferParameters(treename, x0, dub, -1., mu, lambda, psi, p, T, u, nbdirerr, size_pool, debug, 1);
     if (res) {
         return 0;
     }
