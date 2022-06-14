@@ -1,0 +1,159 @@
+import os
+
+# To run locally:
+# snakemake --snakefile Snakefile_viz --keep-going --cores 7 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
+
+
+
+localrules: all
+
+os.makedirs('logs', exist_ok=True)
+sim_folder = os.path.abspath('.')
+sim_folder = os.path.abspath('/home/azhukova/Evolbioinfo/users/azhukova/projects/bdei/simulations')
+DATASETS = ['medium', 'large']
+REPETITIONS = list(range(100))
+
+rule all:
+    input:
+        expand(os.path.join(sim_folder, '{dataset}', 'errors.png'), dataset=DATASETS),
+        expand(os.path.join(sim_folder, '{dataset}', 'errors_tree_mu_la_psi_p.png'), dataset=DATASETS),
+        expand(os.path.join(sim_folder, '{dataset}', 'likelihood_stats.txt'), dataset=DATASETS),
+
+
+rule likelihood_stats:
+    '''
+    Calculate likelihood values for estimated parameters.
+    '''
+    input:
+        tab = os.path.join(sim_folder, '{dataset}', 'estimates.tab'),
+        nwk = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.nwk'), i=REPETITIONS),
+    output:
+        tab = os.path.join(sim_folder, '{dataset}', 'loglikelihoods.tab'),
+        stats = os.path.join(sim_folder, '{dataset}', 'likelihood_stats.txt'),
+    params:
+        mem = 2000,
+        name = 'likelihoods',
+        qos = 'fast',
+        nwk = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{}.nwk')
+    threads: 1
+    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    shell:
+        """
+        python3 py/likelihood_comparison.py --estimates {input.tab} \
+        --tree_pattern {params.nwk} --likelihoods {output.tab} --log {output.stats}
+        """
+
+rule combine_estimates_medium:
+    '''
+    Combine estimates.
+    '''
+    input:
+        log = expand(os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.log'), i=REPETITIONS),
+        est_p = expand(os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.est'), i=REPETITIONS),
+        est_b = os.path.join(sim_folder, 'medium', 'BEAST2.csv'),
+        est_dl = os.path.join(sim_folder, 'medium', 'CNN_CBLV.csv'),
+        est_b_ci = os.path.join(sim_folder, 'medium', 'BEAST2_CI.csv'),
+        est_dl_ci = os.path.join(sim_folder, 'medium', 'CNN_CBLV_CI.csv')
+    output:
+        tab = os.path.join(sim_folder, 'medium', 'estimates.tab'),
+    params:
+        mem = 2000,
+        name = 'estimates',
+        qos = 'fast',
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/summary_table.py --real {input.log} \
+        --estimated {input.est_p} \
+        --estimated_beast2 {input.est_b} --estimated_dl {input.est_dl} \
+        --estimated_beast2_CI {input.est_b_ci} --estimated_dl_CI {input.est_dl_ci} \
+        --tab {output.tab}
+        """
+
+rule combine_estimates_large:
+    '''
+    Combine estimates.
+    '''
+    input:
+        log = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.log'), i=REPETITIONS, type=['tree', 'cluster']),
+        est_p = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.est'), i=REPETITIONS, type=['tree', 'cluster']),
+        est_dl = os.path.join(sim_folder, 'large', 'CNN_CBLV.csv'),
+    output:
+        tab = os.path.join(sim_folder, 'large', 'estimates.tab'),
+    params:
+        mem = 2000,
+        name = 'estimates',
+        qos = 'fast',
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/summary_table.py --real {input.log} --estimated {input.est_p} --tab {output.tab}  --estimated_dl {input.est_dl}
+        """
+
+
+rule combine_mu_la_psi_p_estimates:
+    '''
+    Combine estimates.
+    '''
+    input:
+        log = expand(os.path.join(sim_folder, '{{dataset}}', '{{type}}s', '{{type}}.{i}.log'), i=REPETITIONS),
+        est_p = expand(os.path.join(sim_folder, '{{dataset}}', '{{type}}s', '{{type}}.{i}.est'), i=REPETITIONS),
+        est_la = expand(os.path.join(sim_folder, '{{dataset}}', '{{type}}s', '{{type}}.{i}.est_la'), i=REPETITIONS),
+        est_psi = expand(os.path.join(sim_folder, '{{dataset}}', '{{type}}s', '{{type}}.{i}.est_psi'), i=REPETITIONS),
+        est_mu = expand(os.path.join(sim_folder, '{{dataset}}', '{{type}}s', '{{type}}.{i}.est_mu'), i=REPETITIONS),
+    output:
+        tab = os.path.join(sim_folder, '{dataset}', 'estimates_{type}_mu_la_psi_p.tab'),
+    params:
+        mem = 2000,
+        name = 'estimates',
+        qos = 'fast',
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/summary_table_mu_la_psi_p.py --real {input.log} --tab {output.tab} \
+        --estimated_p {input.est_p} --estimated_la {input.est_la} --estimated_psi {input.est_psi} --estimated_mu {input.est_mu}
+        """
+
+
+rule plot_errors:
+    '''
+    Plots the errors.
+    '''
+    input:
+        tab = os.path.join(sim_folder, '{dataset}', 'estimates.tab'),
+    output:
+        pdf = os.path.join(sim_folder, '{dataset}', 'errors.png'),
+        tab = os.path.join(sim_folder, '{dataset}', 'errors.tab'),
+    params:
+        mem = 2000,
+        name = 'errors',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/plot_error.py --estimates {input.tab} --tab {output.tab} --pdf {output.pdf}
+        """
+
+rule plot_errors_mu_la_psi_p:
+    '''
+    Plots the errors.
+    '''
+    input:
+        tab = os.path.join(sim_folder, '{dataset}', 'estimates_{type}_mu_la_psi_p.tab'),
+    output:
+        pdf = os.path.join(sim_folder, '{dataset}', 'errors_{type}_mu_la_psi_p.png'),
+        tab = os.path.join(sim_folder, '{dataset}', 'errors_{type}_mu_la_psi_p.tab'),
+    params:
+        mem = 2000,
+        name = 'errors',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/plot_error_mu_la_psi_p.py --estimates {input.tab} --tab {output.tab} --pdf {output.pdf}
+        """

@@ -1,20 +1,24 @@
 import os
 
 # To run locally:
-# snakemake --snakefile Snakefile_data --keep-going --cores 4
+# snakemake  --snakefile Snakefile_data --keep-going --cores 4 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
+# To run on bioevo (change shakemake activation below if you are not Anna ;) :
+# source ~/.bashrc && conda activate snakemake && module load singularity/3.8.5 && cd /pasteur/zeus/projets/p01/Evolbioinfo/users/azhukova/projects/bdei/simulations
+# snakemake --snakefile Snakefile_data --keep-going --cores 1 --use-singularity --singularity-prefix $HOME/.singularity --singularity-args "-B /pasteur" --cluster "sbatch -c {threads} -o logs/{params.name}.log -e logs/{params.name}.log --mem {params.mem} -p bioevo --qos={params.qos}  -A bioevo -J {params.name}" --jobs 300
+
 
 localrules: all
 
+os.makedirs('logs', exist_ok=True)
 sim_folder = os.path.abspath('.')
 DATASETS = ['medium', 'large']
-DATASETS = ['large']
 REPETITIONS = list(range(100))
 
 
 rule all:
     input:
+        expand(os.path.join(sim_folder, 'large', 'clusters', 'cluster.{i}.nwk'), i=range(100)),
         expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.nwk'), i=range(100), dataset=DATASETS),
-        expand(os.path.join(sim_folder, 'large', 'forests', 'forest.{i}.nwk'), i=range(100))
 
 
 rule prepare_phylodeep:
@@ -22,70 +26,169 @@ rule prepare_phylodeep:
     Parses PhyloDeep data.
     '''
     input:
-        nwk = os.path.join(sim_folder, 'medium', 'trees.nwk'),
-        log = os.path.join(sim_folder, 'medium', 'TARGET.csv'),
+        nwk = os.path.join(sim_folder, '{dataset}', 'trees.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', 'TARGET.csv'),
     output:
-        nwk = expand(os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.nwk'), i=range(100)),
-        log = expand(os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.log'), i=range(100)),
+        nwk = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.nwk'), i=range(100)),
+        log = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.log'), i=range(100)),
     params:
         mem = 2000,
-        name = 'trees_medium',
+        name = 'trees_{dataset}',
         qos = 'fast'
     threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
     shell:
         """
         python3 py/split_trees.py --in_nwk {input.nwk} --in_log {input.log} --out_nwks {output.nwk} --out_logs {output.log}
         """
-        
-rule prepare_forest:
+
+
+rule prepare_forest_medium:
     '''
     Simulates a forest for given BDEI parameters.
     '''
     input:
-        log = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.log'),
+        log = os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.log'),
     output:
-        nwk = os.path.join(sim_folder, '{dataset}', 'forests', 'forest.{i}.nwk'),
-        log = os.path.join(sim_folder, '{dataset}', 'forests', 'forest.{i}.log'),
+        nwk = os.path.join(sim_folder, 'medium', 'forests', 'forest.{i}.nwk'),
+        log = os.path.join(sim_folder, 'medium', 'forests', 'forest.{i}.log'),
     params:
         mem = 2000,
-        name = 'forest_{dataset}_{i}',
+        name = 'forest_medium_{i}',
         qos = 'fast'
     threads: 1
+    singularity: "docker://evolbioinfo/treesimulator:v0.1.2"
     shell:
         """
-        tips=`tail -n 1 {input.log} | awk '{{ print $1 }}'`
         T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
         mu=`tail -n 1 {input.log} | awk '{{ print $5 }}'`
         la=`tail -n 1 {input.log} | awk '{{ print $6 }}'`
         psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
 
-        python3 py/simulate_forest.py --tips $tips --T $T --mu $mu --la $la --psi $psi --p $p \
+        T=`bc -l <<< "0.75*$T"`
+
+        generate_bdei --min_tips 200 --max_tips 500 --T $T --mu $mu --la $la --psi $psi --p $p \
         --nwk {output.nwk} --log {output.log}
+
+
+        line=`tail -n 1 {output.log}`
+        # R0,infectious time,incubation period,sampling probability,tips,time,hidden_trees
+        R=`echo $line | cut -d, -f1`
+        it=`echo $line | cut -d, -f2`
+        ip=`echo $line | cut -d, -f3`
+        p=`echo $line | cut -d, -f4`
+        tips=`echo $line | cut -d, -f5`
+        time=`echo $line | cut -d, -f6`
+        u=`echo $line | cut -d, -f7`
+        f=`grep -o ';' {output.nwk}  | wc -l`
+        mu=`bc -l <<< "1/$ip"`
+        psi=`bc -l <<< "1/$it"`
+        la=`bc -l <<< "$R/$it"`
+        echo "tips	f	u	T	mu	la	psi	p" > {output.log}
+        echo "$tips	$f	$u	$time	$mu	$la	$psi	$p" >> {output.log}
         """
 
-rule prepare_large_tree:
+rule prepare_forest_large:
     '''
-    Simulates a tree for given BDEI parameters.
+    Simulates a forest for given BDEI parameters.
     '''
     input:
-        log = os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.log'),
-    output:
-        nwk = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.nwk'),
         log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
+    output:
+        nwk = os.path.join(sim_folder, 'large', 'forests', 'forest.{i}.nwk'),
+        log = os.path.join(sim_folder, 'large', 'forests', 'forest.{i}.log'),
     params:
-        mem = 2000,
-        name = 'tree_large_{i}',
-        qos = 'fast'
+        mem = 6000,
+        name = 'forest_large_{i}',
+        qos = 'bioevo'
     threads: 1
+    singularity: "docker://evolbioinfo/treesimulator:v0.1.2"
     shell:
         """
-        tips=`tail -n 1 {input.log} | awk '{{ print $1 }}'`
+        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
         mu=`tail -n 1 {input.log} | awk '{{ print $5 }}'`
         la=`tail -n 1 {input.log} | awk '{{ print $6 }}'`
         psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
 
-        python3 py/simulate_forest.py --tips 5000 --mu $mu --la $la --psi $psi --p $p \
+        T=`bc -l <<< "0.75*$T"`
+
+        generate_bdei --min_tips 5000 --max_tips 10000 --T $T --mu $mu --la $la --psi $psi --p $p \
         --nwk {output.nwk} --log {output.log}
+
+
+        line=`tail -n 1 {output.log}`
+        # R0,infectious time,incubation period,sampling probability,tips,time,hidden_trees
+        R=`echo $line | cut -d, -f1`
+        it=`echo $line | cut -d, -f2`
+        ip=`echo $line | cut -d, -f3`
+        p=`echo $line | cut -d, -f4`
+        tips=`echo $line | cut -d, -f5`
+        time=`echo $line | cut -d, -f6`
+        u=`echo $line | cut -d, -f7`
+        f=`grep -o ';' {output.nwk}  | wc -l`
+        mu=`bc -l <<< "1/$ip"`
+        psi=`bc -l <<< "1/$it"`
+        la=`bc -l <<< "$R/$it"`
+        echo "tips	f	u	T	mu	la	psi	p" > {output.log}
+        echo "$tips	$f	$u	$time	$mu	$la	$psi	$p" >> {output.log}
+        """
+
+rule prepare_clusters_large:
+    '''
+    Splits the tree with PhyloDeep's cluster picker.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.nwk'),
+        log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
+    output:
+        nwk = os.path.join(sim_folder, 'large', 'clusters', 'cluster.{i}.nwk'),
+        log = os.path.join(sim_folder, 'large', 'clusters', 'cluster.{i}.log'),
+    params:
+        mem = 2000,
+        name = 'cluster_{i}',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/phylodeep:v0.2.61"
+    shell:
+        """
+        subtree_picker -i {input.nwk} -o {output.nwk} -m 50 -M 500
+
+        mu=`tail -n 1 {input.log} | awk '{{ print $5 }}'`
+        la=`tail -n 1 {input.log} | awk '{{ print $6 }}'`
+        psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
+        p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
+        f=`grep -o ';' {output.nwk}  | wc -l`
+        echo "tips	f	u	T	mu	la	psi	p" > {output.log}
+        echo "NA	$f	0	0	$mu	$la	$psi	$p" >> {output.log}
+        """
+
+rule prepare_clusters_medium:
+    '''
+    Splits the tree with PhyloDeep's cluster picker.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.nwk'),
+        log = os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.log'),
+    output:
+        nwk = os.path.join(sim_folder, 'medium', 'clusters', 'cluster.{i}.nwk'),
+        log = os.path.join(sim_folder, 'medium', 'clusters', 'cluster.{i}.log'),
+    params:
+        mem = 2000,
+        name = 'cluster_{i}',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/phylodeep:v0.2.61"
+    shell:
+        """
+        subtree_picker -i {input.nwk} -o {output.nwk} -m 50 -M 199
+
+        mu=`tail -n 1 {input.log} | awk '{{ print $5 }}'`
+        la=`tail -n 1 {input.log} | awk '{{ print $6 }}'`
+        psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
+        p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
+        f=`grep -o ';' {output.nwk}  | wc -l`
+        echo "tips	f	u	T	mu	la	psi	p" > {output.log}
+        echo "NA	$f	0	0	$mu	$la	$psi	$p" >> {output.log}
         """

@@ -1,87 +1,25 @@
 import os
 
 # To run locally:
-# snakemake --snakefile Snakefile_estimate --keep-going --cores 7
+# snakemake --snakefile Snakefile_estimate --keep-going --cores 7 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
+
+# To run on bioevo (change shakemake activation below if you are not Anna ;) :
+# source ~/.bashrc && conda activate snakemake && module load singularity && cd /pasteur/zeus/projets/p01/Evolbioinfo/users/azhukova/projects/bdei/simulations
+# snakemake --snakefile Snakefile_estimate --keep-going --cores 1 --use-singularity --singularity-prefix $HOME/.singularity --singularity-args "-B /pasteur" --cluster "sbatch -c {threads} -o logs/{params.name}.log -e logs/{params.name}.log --mem {params.mem} -p bioevo --qos={params.qos}  -A bioevo -J {params.name}" --jobs 300
+
 
 localrules: all
 
+os.makedirs('logs', exist_ok=True)
 sim_folder = os.path.abspath('.')
 DATASETS = ['medium', 'large']
 REPETITIONS = list(range(100))
-PLANTS = ['tree', 'forest']
 
 rule all:
     input:
-        expand(os.path.join(sim_folder, '{dataset}', 'errors.png'), dataset=DATASETS)
-
-
-rule combine_estimates:
-    '''
-    Combine estimates.
-    '''
-    input:
-        log = expand(os.path.join(sim_folder, '{{dataset}}', '{type}s', '{type}.{i}.log'), i=REPETITIONS, type=['tree']),
-        est_p = expand(os.path.join(sim_folder, '{{dataset}}', '{type}s', '{type}.{i}.est'), i=REPETITIONS, type=['tree']),
-        est_b = os.path.join(sim_folder, '{dataset}', 'BEAST2.csv'),
-        est_dl = os.path.join(sim_folder, '{dataset}', 'CNN_CBLV.csv'),
-        est_b_ci = os.path.join(sim_folder, '{dataset}', 'BEAST2_CI.csv'),
-        est_dl_ci = os.path.join(sim_folder, '{dataset}', 'CNN_CBLV_CI.csv')
-    output:
-        tab = os.path.join(sim_folder, '{dataset}', 'estimates.tab'),
-    params:
-        mem = 2000,
-        name = 'estimates',
-        qos = 'fast',
-    threads: 1
-    shell:
-        """
-        python3 py/summary_table.py --real {input.log} \
-        --estimated {input.est_p} \
-        --estimated_beast2 {input.est_b} --estimated_dl {input.est_dl} \
-        --estimated_beast2_CI {input.est_b_ci} --estimated_dl_CI {input.est_dl_ci} \
-        --tab {output.tab}
-        """
-
-rule combine_large_estimates:
-    '''
-    Combine estimates.
-    '''
-    input:
-        log = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.log'), i=REPETITIONS, type=PLANTS),
-        est_p = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.est'), i=REPETITIONS, type=PLANTS),
-        est_dl = os.path.join(sim_folder, 'large', 'CNN_CBLV.csv'),
-    output:
-        tab = os.path.join(sim_folder, 'large', 'estimates.tab'),
-    params:
-        mem = 2000,
-        name = 'estimates',
-        qos = 'fast',
-    threads: 1
-    shell:
-        """
-        python3 py/summary_table.py --real {input.log} --estimated {input.est_p} --tab {output.tab}  --estimated_dl {input.est_dl}
-        """
-
-
-rule plot_errors:
-    '''
-    Plots the errors.
-    '''
-    input:
-        tab = os.path.join(sim_folder, '{dataset}', 'estimates.tab'),
-    output:
-        pdf = os.path.join(sim_folder, '{dataset}', 'errors.png'),
-        tab = os.path.join(sim_folder, '{dataset}', 'errors.tab'),
-    params:
-        mem = 2000,
-        name = 'errors',
-        qos = 'fast'
-    threads: 1
-    shell:
-        """
-        python3 py/plot_error.py --estimates {input.tab} \
-        --tab {output.tab} --pdf {output.pdf}
-        """
+        expand(os.path.join(sim_folder, 'large', 'clusters', 'cluster.{i}.est'), i=REPETITIONS),
+        expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.est'), i=REPETITIONS, dataset=DATASETS),
+        expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.est_{param}'), i=REPETITIONS, dataset=DATASETS, param=['mu', 'la', 'psi']),
 
 rule estimate_params_p_fixed:
     '''
@@ -97,12 +35,90 @@ rule estimate_params_p_fixed:
         name = 'estimate_{type}_{i}',
         qos = 'fast'
     threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.1.17"
     shell:
         """
         u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
+        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
         cat {input.log}
 
-        bdei_infer -u $u --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est}
+        echo "bdei_infer -u $u --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est} --T $T"
+        bdei_infer -u $u --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est} --T $T
+        """
+
+rule estimate_params_mu_fixed:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.est_mu'),
+    params:
+        mem = 2000,
+        name = 'estimate_{type}_{i}',
+        qos = 'fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    shell:
+        """
+        u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
+        mu=`tail -n 1 {input.log} | awk '{{ print $5 }}'`
+        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
+        cat {input.log}
+
+        bdei_infer -u $u --mu $mu -t {threads} --nwk {input.nwk} --log {output.est} --T $T
+        """
+
+rule estimate_params_la_fixed:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.est_la'),
+    params:
+        mem = 2000,
+        name = 'estimate_{type}_{i}',
+        qos = 'fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    shell:
+        """
+        u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
+        la=`tail -n 1 {input.log} | awk '{{ print $6 }}'`
+        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
+        cat {input.log}
+
+        bdei_infer -u $u --la $la -t {threads} --nwk {input.nwk} --log {output.est} --T $T
+        """
+
+rule estimate_params_psi_fixed:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.est_psi'),
+    params:
+        mem = 2000,
+        name = 'estimate_{type}_{i}',
+        qos = 'fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    shell:
+        """
+        u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
+        psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
+        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
+        cat {input.log}
+
+        bdei_infer -u $u --psi $psi -t {threads} --nwk {input.nwk} --log {output.est} --T $T
         """
 
