@@ -76,7 +76,7 @@ snakemake --snakefile Snakefile_viz --keep-going --use-singularity --singularity
 ```
 
 #### Relative errors on the medium data set
-![Medium data set errors](medium_old/errors.png)
+![Medium data set errors](medium/errors.png)
 
 #### Relative errors on the large data set
 ![Medium data set errors](large/errors.png)
