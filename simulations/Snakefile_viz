@@ -9,7 +9,6 @@ localrules: all
 
 os.makedirs('logs', exist_ok=True)
 sim_folder = os.path.abspath('.')
-sim_folder = os.path.abspath('/home/azhukova/Evolbioinfo/users/azhukova/projects/bdei/simulations')
 DATASETS = ['medium', 'large']
 REPETITIONS = list(range(100))
 

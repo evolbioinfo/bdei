@@ -1,8 +1,6 @@
-import logging
 import re
 
 import pandas as pd
-
 
 if __name__ == "__main__":
     import argparse
@@ -20,9 +18,6 @@ if __name__ == "__main__":
     parser.add_argument('--real', nargs='+', type=str, help="real parameters")
     parser.add_argument('--tab', type=str, help="estimate table")
     params = parser.parse_args()
-
-    logging.getLogger().handlers = []
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s: %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
 
     df = pd.DataFrame(columns=['type', 'T', 'sampled_tips', 'observed_trees', 'unobserved_trees',
                                'mu', 'mu_min', 'mu_max',
@@ -104,7 +99,7 @@ if __name__ == "__main__":
     for est in params.estimated:
         i = int(re.findall(r'[0-9]+', est)[0])
         ddf = pd.read_csv(est, sep='\t')
-        est_label = 'PyBDEI{}'.format('' if 'tree' in est else ' (forest)')
+        est_label = 'PyBDEI{}'.format('' if 'tree' in est else ' (forest)' if 'forest' in est else ' (subtrees)')
         estimates = ddf.loc[next(iter(ddf.index)), :]
         df_i = '{}.{}'.format(i, est_label)
         df.loc[df_i, ['mu', 'psi', 'R_naught', 'incubation_period', 'infectious_time']] \

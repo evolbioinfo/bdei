@@ -1673,7 +1673,7 @@ Solution
 
 Solution
 *inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr, int nt) {
-    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, 1);
+    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, 0, 1);
 }
 
 int main(int argc, const char *argv[]) {

@@ -105,6 +105,11 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
 
     forest = None
 
+    if u > 0 and T <= 0:
+        raise ValueError("The number of unobserved trees is positive (u={}), "
+                         "hence all the trees are assumed to have started at the same time, "
+                         "and a non-zero T must be given.".format(u))
+
     if isinstance(start, BDEI_result):
         start = np.array([start.mu, start.la, start.psi, start.p])
     if start is None:
@@ -203,6 +208,11 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
 
 def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0.0, u=0, params=None, **kwargs):
     """Calculate loglikelihood for given BDEI parameters from a phylogenetic tree."""
+
+    if u > 0 and T <= 0:
+        raise ValueError("The number of unobserved trees is positive (u={}), "
+                         "hence all the trees are assumed to have started at the same time, "
+                         "and a non-zero T must be given.".format(u))
 
     if params is not None:
         if isinstance(params, BDEI_result):

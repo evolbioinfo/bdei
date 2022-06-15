@@ -29,7 +29,13 @@ def main():
     parameter_group.add_argument('--p', required=True, type=float, default=None,
                                   help="Value to fix BDEI sampling probability. "
                                        "If not given, will be estimated.")
+    parameter_group.add_argument('--pi_E', required=False, type=float, default=-1,
+                                 help="Frequency of E at time 0, "
+                                      "should be between 0 and 1. "
+                                      "If not given, will be estimated from the model parameters.")
     params = parser.parse_args()
+    if params.pi_E is None:
+        params.pi_E = -1
     res = get_loglikelihood(**vars(params))
     print(res)
 

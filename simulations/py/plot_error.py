@@ -168,6 +168,8 @@ if __name__ == "__main__":
         ax.set_xlabel('')
         ax.add_artist(anchored_xbox)
         leg = ax.legend()
+        if pars != RATE_PARAMETERS:
+            leg.remove()
 
     fig.set_size_inches(9 if n_types == 3 else 6.5, 8 if n_types == 3 else 6)
     plt.tight_layout()

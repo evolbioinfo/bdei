@@ -11,9 +11,11 @@ def main():
     parser = argparse.ArgumentParser(description="BDEI model parameter inference from phylogenetic trees.", prog='bdei_infer')
 
     tree_group = parser.add_argument_group('tree-related arguments')
-    tree_group.add_argument('--nwk', help="input tree(s) in newick format (must be rooted).",
+    tree_group.add_argument('--nwk', help="Input tree(s) in newick format (must be rooted).",
                             type=str, required=True)
-    tree_group.add_argument('-u', '--u', help="number of unobserved trees.",
+    tree_group.add_argument('-u', '--u', help="Number of unobserved trees. "
+                                              "Can be non-zero only when all trees started at the same time "
+                                              "(i.e. T is given).",
                             type=int, default=0)
 
     parameter_group = parser.add_argument_group('parameter-related arguments')
@@ -44,9 +46,15 @@ def main():
     parameter_group.add_argument('--T', default=0, type=float,
                                   help="Total time between the tree roots and the end of the epidemic "
                                        "(to be given if all trees start at the same time). "
-                                       "If not given, this time will be tree-specific "
+                                       "If a positive value is given, the total time will be set to the maximum "
+                                       "between this value and the maximal time between the start "
+                                       "and the last sampled tip of all the trees. "
+                                       "If a zero or negative value is given, the time will be tree-specific "
                                        "and estimated as the time between the root "
-                                       "and the last sampled tip of that tree.")
+                                       "and the last sampled tip for each tree."
+                                       "Note that if the number of unobserved trees (u) is given, "
+                                       "all the trees are assumed to have started at the same time, "
+                                       "hence T must be non-negative.")
 
     result_group = parser.add_argument_group('output-related arguments')
     result_group.add_argument('-c', '--CI_repetitions', default=0,
