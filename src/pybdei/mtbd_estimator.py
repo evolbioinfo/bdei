@@ -1,8 +1,10 @@
+import os
+from itertools import chain
+from multiprocessing.pool import ThreadPool
 
 import numpy as np
 import pandas as pd
 from ete3 import Tree
-from matplotlib import pyplot as plt
 from pybdei import initial_rate_guess
 from scipy.integrate import odeint
 from scipy.optimize import minimize, fsolve
@@ -111,25 +113,6 @@ def compute_U(T, MU, LA, PSI, RHO, SIGMA, nsteps=N_U_STEPS):
     return get_U
 
 
-def plot_P_simple(k, get_U, ti, t0, MU, LA, PSI):
-    t = np.linspace(ti, t0, 1001)
-
-    def pdf_Pany_l(P, t):
-        U = get_U(t)
-        return (MU.sum(axis=1) + LA.dot(1 - U) + PSI) * P - (MU + U * LA).dot(P)
-
-    y0 = np.zeros(len(PSI), np.float64)
-    y0[k] = 1
-    sol = odeint(pdf_Pany_l, y0, t)
-
-    plt.plot(t, sol[:, 0], 'b', label='logP_E(t)')
-    plt.plot(t, sol[:, 1], 'g', label='logP_I(t)')
-    plt.legend(loc='best')
-    plt.xlabel('t')
-    plt.grid()
-    plt.show()
-
-
 def find_index_within_bounds(sol, start, stop, upper_bound, lower_bound=0):
     """
     Find an index i in a given array sol (of shape n x m),
@@ -205,7 +188,7 @@ def get_P(ti, l, t0, get_U, MU, LA, SIGMA):
         ti = tt[i]
         nsteps = 100
         tt = np.linspace(ti, t0, nsteps)
-        sol = odeint(pdf_Pany_l, vs, tt)
+        sol = odeint(pdf_Pany_l, y0, tt)
 
     return np.maximum(sol[-1, :], 0), np.log(cs).sum()
 
@@ -234,7 +217,7 @@ def rescale_log_array(loglikelihood_array):
     return factors
 
 
-def loglikelihood_known_states(forest, T, MU, LA, PSI, RHO, u=0):
+def loglikelihood_known_states(forest, T, MU, LA, PSI, RHO, u=0, threads=1):
     """
     Calculates loglikelihood for a given forest of trees,
     whose nodes are annotated with their state ids in 1:m (via feature STATE_K),
@@ -255,15 +238,32 @@ def loglikelihood_known_states(forest, T, MU, LA, PSI, RHO, u=0):
     get_U = compute_U(T, MU=MU, LA=LA, PSI=PSI, RHO=RHO, SIGMA=SIGMA)
 
 
-    n2p = {}
-    for tree in forest:
-        for n in tree.traverse('preorder'):
-            ti = getattr(n, TI)
-            n2p[n] = get_P(t0=(ti - n.dist), l=(getattr(n, STATE_K)), ti=ti, get_U=get_U, MU=MU, LA=LA, SIGMA=SIGMA)
+    if threads < 1:
+        threads = max(os.cpu_count(), 1)
 
-            if np.all(n2p[n][0] == 0):
-                # plot_P(k, get_U, ti, t0, MU, LA, PSI)
-                return -np.inf
+    def _work(n):
+        ti = getattr(n, TI)
+        P, factors = get_P(t0=ti - n.dist, l=getattr(n, STATE_K), ti=ti, get_U=get_U, MU=MU, LA=LA, SIGMA=SIGMA)
+        # if np.all(P == 0):
+        #     plot_P(getattr(n, STATE_K), get_U, ti, ti - n.dist, MU, LA, PSI)
+        return n, (P, factors)
+
+    if threads > 1:
+        with ThreadPool(processes=threads) as pool:
+            acr_results = \
+                pool.map(func=_work, iterable=chain(*(tree.traverse() for tree in forest)))
+    else:
+        acr_results = [_work(n) for n in chain(*(tree.traverse() for tree in forest))]
+
+    n2p = {n: _ for (n, _) in acr_results}
+    # for tree in forest:
+    #     for n in tree.traverse('preorder'):
+    #         ti = getattr(n, TI)
+    #         n2p[n] = get_P(t0=ti - n.dist, l=getattr(n, STATE_K), ti=ti, get_U=get_U, MU=MU, LA=LA, SIGMA=SIGMA)
+    #
+    #         if np.all(n2p[n][0] == 0):
+    #             plot_P(getattr(n, STATE_K), get_U, ti, ti - n.dist, MU, LA, PSI)
+    #             return -np.inf
 
     res = 0 if not u else u * np.log(PI.dot(get_U(0)))
     for tree in forest:
@@ -340,7 +340,7 @@ def optimize_likelihood_params(forest, model, T, optimise, u=0):
     n_psi = opt_removal_rates.sum()
     n_p = opt_ps.sum()
 
-    bounds.extend([[0.01, 10]] * (n_mu + n_la + n_psi))
+    bounds.extend([[1e-3, 10e3]] * (n_mu + n_la + n_psi))
     bounds.extend([[1e-3, 1 - 1e-3]] * n_p)
     bounds = np.array(bounds, np.float64)
 
@@ -376,7 +376,7 @@ def optimize_likelihood_params(forest, model, T, optimise, u=0):
         else:
             vs = np.random.uniform(bounds[:, 0], bounds[:, 1])
 
-        fres = minimize(get_v, x0=vs, method='L-BFGS-B', bounds=bounds)
+        fres = minimize(get_v, x0=vs, method='TNC', bounds=bounds)
         if fres.success and not np.any(np.isnan(fres.x)) and -fres.fun >= best_log_lh:
             x0 = fres.x
             best_log_lh = -fres.fun
@@ -387,41 +387,7 @@ def optimize_likelihood_params(forest, model, T, optimise, u=0):
     return MU, LA, PSI, RHO, best_log_lh
 
 
-def plot_U(get_U, T):
-    t = np.linspace(0, T, 1001)
-    esol_E = [get_U(_)[0] for _ in t]
-    esol_I = [get_U(_)[1] for _ in t]
-    plt.plot(t, esol_E, 'b', label='U_E(t)')
-    plt.plot(t, esol_I, 'g', label='U_I(t)')
-    plt.legend(loc='best')
-    plt.xlabel('t')
-    plt.grid()
-    plt.show()
-
-
-def plot_P(k, get_U, ti, t0, MU, LA, PSI):
-    t = np.linspace(ti, t0, 1001)
-
-    def pdf_Pany_l(P, t):
-        U = get_U(t)
-        return (MU.sum(axis=1) + LA.dot(1 - U) + PSI) * P - (MU + U * LA).dot(P)
-
-    y0 = np.zeros(len(PSI), np.float64)
-    y0[k] = 1
-    sol = odeint(pdf_Pany_l, y0, t)
-
-    plt.plot(t, sol[:, 0], 'b', label='logP_E(t)')
-    plt.plot(t, sol[:, 1], 'g', label='logP_I(t)')
-    plt.legend(loc='best')
-    plt.xlabel('t')
-    plt.grid()
-    plt.show()
-
-
 if __name__ == '__main__':
-
-    # plot_P()
-    # exit()
     tree = Tree('/home/azhukova/projects/bdei/simulations/medium/trees/tree.1.nwk')
     T = 0
     for n in tree.traverse('preorder'):
@@ -432,16 +398,18 @@ if __name__ == '__main__':
 
     forest = [tree]
     p = 0.6225767763228239
+    real_mu = 0.2523725112488919
+    real_la = 0.907081384137969
+    real_psi = 0.2692907505391973
+
     rate = initial_rate_guess(forest).pop()
-    model = BirthDeathExposedInfectiousModel(mu=rate, la=rate, psi=rate / 2, p=p)
+    model = BirthDeathExposedInfectiousModel(mu=rate, la=rate, psi=rate, p=p)
     optimise = BirthDeathExposedInfectiousModel(mu=1, la=1, psi=1, p=0)
-    real_model = BirthDeathExposedInfectiousModel(mu=0.2523725112488919, la=0.907081384137969, psi=0.2692907505391973,
-                                                  p=p)
-    print('Real likelihood is', loglikelihood_known_states(forest, T, real_model.transition_rates, real_model.transmission_rates, real_model.removal_rates, real_model.ps))
-    # prob_model = BirthDeathExposedInfectiousModel(mu=27.30227398105135, la=27.30227398105135, psi=27.30227398105135,
-    #                                               p=p)
-    # print('Prob likelihood is', loglikelihood_known_states(forest, T, prob_model.transition_rates, prob_model.transmission_rates, prob_model.removal_rates, prob_model.ps))
-    # exit()
+    real_model = BirthDeathExposedInfectiousModel(mu=real_mu, la=real_la, psi=real_psi, p=p)
+
+    print('Real values and likelihood are:\n', "mu=", real_mu, "la=", real_la, "psi=", real_psi, "p=", p, "\t-->\t",
+          loglikelihood_known_states(forest, T, real_model.transition_rates, real_model.transmission_rates,
+                                     real_model.removal_rates, real_model.ps))
     # # model = real_model
     MU, LA, PSI, RHO, lk = optimize_likelihood_params(forest, model, T, optimise)
     print("mu=", MU[0, 1], "la=", LA[1, 0], "psi=", PSI[1], "p=", RHO[1], "lk=", lk)
