@@ -19,6 +19,14 @@ MAX_VALUE = np.log(np.finfo(np.float64).max)
 
 
 def state_frequencies(MU, LA, PSI):
+    """
+    Calculates equilibrium state frequencies for given rate values.
+
+    :param MU: an array of state transition rates
+    :param LA: an array of transmission rates
+    :param PSI:  an array of removal rates
+    :return: an array of equilibrium state frequencies [pi_0, ..., pi_m]
+    """
     m = len(PSI)
 
     def func(PI):
@@ -35,28 +43,55 @@ def state_frequencies(MU, LA, PSI):
     return PI
 
 
-def binary(v, tt, start, stop):
+def find_time_index(v, tt, start, stop):
+    """
+    Searches for an index i in time array tt, such that tt[i] >= v > tt[i + 1], using a binary search.
+
+    :param v: a time value for which the index is searched for
+    :param tt: a time array [t_n, ..., t_0] such that t_{i + 1} > t_i.
+    :param start: start index for the search (inclusive)
+    :param stop: stop index for the search (exclusive)
+    :return: an index i, such that tt[i] >= v > tt[i + 1].
+    """
     i = start + ((stop - start) // 2)
     if i == start or i == stop - 1:
         return i
     if tt[i] >= v:
         if tt[i + 1] < v:
             return i
-        return binary(v, tt, i + 1, stop)
+        return find_time_index(v, tt, i + 1, stop)
     if tt[i - 1] >= v:
         return i - 1
-    return binary(v, tt, start, i)
+    return find_time_index(v, tt, start, i)
 
 
 def compute_U(T, MU, LA, PSI, RHO, SIGMA, nsteps=N_U_STEPS):
+    """
+    Calculates a function get_U which for a given time t: 0 <= t <= T, would return
+    an array of unobserved probabilities [U_1(t), ..., U_m(t)].
+
+    U_k(t) are calculated by
+    (1) solving their ODEs numerically for an array tt of nsteps times equally spaced between t=T and t=0,
+    producing an array of solutions sol of length nstep (for corresponding times in tt)s.
+    (2) creating a linear approximation which for a given time t (2a) find an index i such that tt[i] >= t > tt[i+1];
+    (2b) returns sol[i + 1] + (sol[i] - sol[i + 1]) * (tt[i] - t) / (tt[i] - tt[i + 1]).
+
+
+    :param T: time at end of the sampling period
+    :param MU: an array of state transition rates
+    :param LA: an array of transmission rates
+    :param PSI: an array of removal rates
+    :param RHO: an array of sampling probabilities
+    :param SIGMA: an array of rate sums: MU.sum(axis=1) + LA.sum(axis=1) + PSI
+    :return: a function that for a given time t returns the array of corresponding unsampled probabilities:
+        t ->  [U_1(t), ..., U_m(t)].
+    """
     tt = np.linspace(T, 0, nsteps)
     y0 = np.ones(LA.shape[0], np.float64)
     PSI_NOT_RHO = PSI * (1 - RHO)
 
     def pdf_U(U, t):
-        dU = (SIGMA - LA.dot(U)) * U \
-               - MU.dot(U) \
-               - PSI_NOT_RHO
+        dU = (SIGMA - LA.dot(U)) * U - MU.dot(U) - PSI_NOT_RHO
         return dU
 
     sol = odeint(pdf_U, y0, tt)
@@ -64,7 +99,7 @@ def compute_U(T, MU, LA, PSI, RHO, SIGMA, nsteps=N_U_STEPS):
     def get_U(t):
         t = max(0, min(t, T))
         tt_len = len(tt)
-        i = binary(t, tt, 0, tt_len)
+        i = find_time_index(t, tt, 0, tt_len)
         sol_prev = sol[i, :]
         if i == (tt_len - 1) or t == tt[i]:
             return sol_prev
@@ -74,22 +109,6 @@ def compute_U(T, MU, LA, PSI, RHO, SIGMA, nsteps=N_U_STEPS):
         return sol_next + (sol_prev - sol_next) * (tt[i] - t) / (tt[i] - tt[i + 1])
 
     return get_U
-
-
-def get_logP_plus_1(t, l, t0, get_U, MU, LA, SIGMA):
-    y0 = np.zeros(LA.shape[0], np.float64)
-    y0[l] = np.log(2)
-
-    def pdf_logPany_l(logP_plus_1, t):
-        U = get_U(t)
-        A = SIGMA - LA.dot(U)
-        B = (MU + U * LA)
-        Q = np.exp(logP_plus_1)
-        P = Q - 1
-        return A - (B.dot(P) + A) / (P + 1)
-
-    sol = odeint(pdf_logPany_l, y0, [t0, t])
-    return sol[1, :]
 
 
 def plot_P_simple(k, get_U, ti, t0, MU, LA, PSI):
@@ -111,7 +130,47 @@ def plot_P_simple(k, get_U, ti, t0, MU, LA, PSI):
     plt.show()
 
 
+def find_index_within_bounds(sol, start, stop, upper_bound, lower_bound=0):
+    """
+    Find an index i in a given array sol (of shape n x m),
+    such that all the values of sol[i, :] are withing the given bounds
+    and at least one of them is above the lower bound.
+
+    Note that such index might not be unique. The search starts with the middle of the array
+    and if needed proceeds with the binary search in the lower half of the array.
+
+    :param sol: an array where to search
+    :param start: start position in the array (inclusive)
+    :param stop: stop position in the array (exclusive)
+    :param upper_bound: upper bound
+    :param lower_bound: lower bound
+    :return: the index i that satisfies the above conditions
+    """
+    i = start + ((stop - start) // 2)
+    if i == start or i == stop - 1:
+        return i
+    value = sol[i, :]
+    if np.all(value >= lower_bound) and np.all(value <= upper_bound) and np.any(value > lower_bound):
+        return i
+    return find_index_within_bounds(sol, start, i, upper_bound)
+
+
 def get_P(ti, l, t0, get_U, MU, LA, SIGMA):
+    """
+    Calculates P_{kl}^{(i)}(t0) for k in 1:m, where the initial condition is specified at time ti >= t0 (time of node i):
+    P_{kl}^{(i)}(ti) = 0 for all k=l;
+    P_{ll}^{(i)}(ti) = 1.
+
+    :param ti: time for the initial condition (at node i)
+    :param l: state of node i (the only state for which the initial condition is non-zero)
+    :param t0: time to calculate the values at (t0 <= ti)
+    :param get_U: a function to calculate an array of unsampled probabilities for a given time: t -> [U_1, .., U_m]
+    :param MU: an array of state transition rates
+    :param LA: an array of transmission rates
+    :param SIGMA:  an array of rate sums: MU.sum(axis=1) + LA.sum(axis=1) + PSI, where PSI is the array of removal rates
+    :return: a tuple containing an array of (potentially rescaled) branch evolution probabilities at time t0:
+        [CP^{(i)}_{0l}(t0), .., CP^{(i)}_{ml}(t0)] and a log of the scaling factor: logC
+    """
 
     def pdf_Pany_l(P, t):
         U = get_U(t)
@@ -124,9 +183,14 @@ def get_P(ti, l, t0, get_U, MU, LA, SIGMA):
     tt = np.linspace(ti, t0, nsteps)
     sol = odeint(pdf_Pany_l, y0, tt)
 
+    # If there was an underflow during P_{kl}^{(i)}(t) calculations, we find a time tt[i] before the problem happened
+    # and use its values sol[i, :] as new initial values for a rescaled ODE calculation,
+    # which we solve for CP_{kl}^{(i)}(t). The new initial values become:
+    # CP_{kl}^{(i)}(tt[i]) = C sol[i, k],
+    # where C = 1 / min_positive(sol[i, :]).
     cs = [1]
     while np.any(sol[-1, :] < 0) or np.all(sol[-1, :] == 0) or np.any(sol[-1, :] > np.prod(cs)):
-        i = find_positive(sol, 0, len(tt), np.prod(cs))
+        i = find_index_within_bounds(sol, 0, len(tt), np.prod(cs))
         if i == 0:
             nsteps *= 10
             tt = np.linspace(ti, t0, nsteps)
@@ -134,8 +198,6 @@ def get_P(ti, l, t0, get_U, MU, LA, SIGMA):
             continue
 
         vs = sol[i, :]
-        # print(ti, '->', tt[i])
-        # print(y0, '->', vs)
 
         c = 1 / min(sol[i, sol[i, :] > 0])
         cs.append(c)
@@ -152,7 +214,7 @@ def rescale_log_array(loglikelihood_array):
     """
     Rescales the likelihood array if it gets too small/large, by multiplying it by a factor of 10.
     :param loglikelihood_array: numpy array containing the loglikelihood to be rescaled
-    :return: float, factor of 10 by which the likelihood array has been multiplied.
+    :return: float, factor of e by which the likelihood array has been multiplied.
     """
 
     max_limit = MAX_VALUE
@@ -172,102 +234,38 @@ def rescale_log_array(loglikelihood_array):
     return factors
 
 
-def loglikelihood_known_states_log(forest, T, MU, LA, PSI, RHO, u=0):
-    """
-    Each tree node is annotated with ti and state.
-
-    :param forest:
-    :param model:
-    :return:
-    """
-    PI = state_frequencies(MU, LA, PSI)
-    PSI_RHO = PSI * RHO
-    SIGMA = MU.sum(axis=1) + LA.sum(axis=1) + PSI
-    m = len(PI)
-    get_U = compute_U(T, MU=MU, LA=LA, PSI=PSI, RHO=RHO, SIGMA=SIGMA)
-    plot_U(get_U, T)
-
-    res = [0 if not u else u * np.log(PI.dot(get_U(0)))]
-
-    for tree in forest:
-        for n in tree.traverse('preorder'):
-            k = getattr(n, STATE_K)
-            ti = getattr(n, TI)
-            t0 = getattr(n.up, TI) if not n.is_root() else 0
-            logP_plus_1 = get_logP_plus_1(t0, k, ti, get_U, MU, LA, SIGMA)
-            factors = 0 #rescale_log_array(logP_plus_1)
-            P = np.maximum(np.exp(logP_plus_1) - np.exp(factors), 0)
-
-            if np.all(P == 0):
-                plot_P(k, get_U, ti, t0, MU, LA, PSI)
-                print(np.exp(logP_plus_1) - np.exp(factors))
-
-
-
-    for tree in forest:
-        for n in tree.traverse('preorder'):
-            k = getattr(n, STATE_K)
-            ti = getattr(n, TI)
-            if n.is_root() and n.ti:
-                logP_plus_1 = get_logP_plus_1(0, k, ti, get_U, MU, LA, SIGMA)
-                factors = rescale_log_array(logP_plus_1)
-                P = np.maximum(np.exp(logP_plus_1) - np.exp(factors), 0)
-                res.append(np.log(PI.dot(P)) - factors)
-            if n.is_leaf():
-                res.append(np.log(PSI_RHO[k]))
-            else:
-                lc, rc = n.children
-                ti_lc, ti_rc = getattr(lc, TI), getattr(rc, TI)
-                s_lc, s_rc = getattr(lc, STATE_K), getattr(rc, STATE_K)
-                logP_plus_1_lc, logP_plus_1_rc = get_logP_plus_1(ti, s_lc, ti_lc, get_U, MU, LA, SIGMA), \
-                                                 get_logP_plus_1(ti, s_rc, ti_rc, get_U, MU, LA, SIGMA)
-                logP_plus_1_both = np.append(logP_plus_1_lc, logP_plus_1_rc)
-                factors = rescale_log_array(logP_plus_1_both)
-                P_both = np.maximum(np.exp(logP_plus_1_both) - np.exp(factors), 0)
-                P_lc, P_rc = P_both[:m], P_both[m:]
-                LA_k = LA[k, :]
-                res.append(np.log(P_lc[k] * LA_k.dot(P_rc) + P_rc[k] * LA_k.dot(P_lc)) - 2 * factors)
-            if np.isnan(res[-1]) or res[-1] == -np.inf:
-                print(LA[k, :], n.dist, getattr(n, TI), getattr(n, STATE_K), res[-1])
-                if n.children:
-                    print(P_lc, LA_k.dot(P_rc), P_rc[k], LA_k.dot(P_lc))
-                    print(lc.dist, rc.dist, getattr(lc, TI), getattr(lc, STATE_K), getattr(rc, TI), getattr(rc, STATE_K))
-                break
-    print(res)
-    if np.any(np.isnan(res)):
-        print(res)
-        res = -np.inf
-    return sum(sorted(res))
-
-
 def loglikelihood_known_states(forest, T, MU, LA, PSI, RHO, u=0):
     """
-    Each tree node is annotated with ti and state.
+    Calculates loglikelihood for a given forest of trees,
+    whose nodes are annotated with their state ids in 1:m (via feature STATE_K),
+    and treir times (via feature TI), under given MTBD model parameters.
 
-    :param forest:
-    :param model:
-    :return:
+    :param forest: a list of ete3.Tree trees
+    :param T: time at end of the sampling period
+    :param MU: an array of state transition rates
+    :param LA: an array of transmission rates
+    :param PSI: an array of removal rates
+    :param RHO: an array of sampling probabilities
+    :param u: number of hidden trees, where no tip got sampled
+    :return: the value of loglikelihood
     """
     PI = state_frequencies(MU, LA, PSI)
     PSI_RHO = PSI * RHO
     SIGMA = MU.sum(axis=1) + LA.sum(axis=1) + PSI
     get_U = compute_U(T, MU=MU, LA=LA, PSI=PSI, RHO=RHO, SIGMA=SIGMA)
 
-    res = 0 if not u else u * np.log(PI.dot(get_U(0)))
 
     n2p = {}
     for tree in forest:
         for n in tree.traverse('preorder'):
-            k = getattr(n, STATE_K)
             ti = getattr(n, TI)
-            t0 = ti - n.dist
-            P, factors = get_P(t0=t0, l=k, ti=ti, get_U=get_U, MU=MU, LA=LA, SIGMA=SIGMA)
+            n2p[n] = get_P(t0=(ti - n.dist), l=(getattr(n, STATE_K)), ti=ti, get_U=get_U, MU=MU, LA=LA, SIGMA=SIGMA)
 
-            n2p[n] = P, factors
+            if np.all(n2p[n][0] == 0):
+                # plot_P(k, get_U, ti, t0, MU, LA, PSI)
+                return -np.inf
 
-            if np.all(P == 0):
-                plot_P_simple(k, get_U, ti, t0, MU, LA, PSI)
-
+    res = 0 if not u else u * np.log(PI.dot(get_U(0)))
     for tree in forest:
         for n in tree.traverse('preorder'):
             k = getattr(n, STATE_K)
@@ -284,8 +282,6 @@ def loglikelihood_known_states(forest, T, MU, LA, PSI, RHO, u=0):
                 P_lc *= np.exp(diff_lc)
                 P_rc *= np.exp(diff_rc)
                 LA_k = LA[k, :]
-                if (P_lc[k] * LA_k.dot(P_rc) <= 0) or (P_rc[k] * LA_k.dot(P_lc) <= 0) or (P_lc[k] * LA_k.dot(P_rc) + P_rc[k] * LA_k.dot(P_lc)) <=0:
-                    print(P_lc, P_rc, diff_lc, diff_rc)
                 res += np.log(P_lc[k] * LA_k.dot(P_rc) + P_rc[k] * LA_k.dot(P_lc)) - 2 * max_factors
             if np.isnan(res):
                 break
@@ -296,6 +292,12 @@ def loglikelihood_known_states(forest, T, MU, LA, PSI, RHO, u=0):
 
 
 def rescale_forest(forest):
+    """
+    Rescales forest branches and node times so that the average branch length in the rescaled forest is one.
+
+    :param forest: a list of ete3.Tree trees
+    :return: the scaling factor, which is equal to 1 / average_branch_length
+    """
     br_lengths = []
     for tree in forest:
         for _ in tree.traverse():
@@ -309,15 +311,18 @@ def rescale_forest(forest):
     return scaling_factor
 
 
-def rescale_model(model, scaling_factor):
-    model.transition_rates = scaling_factor * model.transition_rates
-    model.transmission_rates = scaling_factor * model.transmission_rates
-    model.removal_rates = scaling_factor * model.removal_rates
-
-
 def optimize_likelihood_params(forest, model, T, optimise, u=0):
     """
-    Optimizes the likelihood parameters for a given forest.
+    Optimizes the likelihood parameters for a given forest and a given MTBD model.
+
+
+    :param forest: a list of ete3.Tree trees, annotated with node states and times via features STATE_K and TI.
+    :param T: time at end of the sampling period
+    :param model: MTBD model containing starting parameter values
+    :param optimise: MTBD model whose rates indicate which parameters need to optimized:
+        positive rates correspond to optimized parameters
+    :param u: number of hidden trees, where no tip got sampled
+    :return: the values of optimised parameters and the corresponding loglikelihood: (MU, LA, PSI, RHO, best_log_lh)
     """
     scaling_factor = 1
     # scaling_factor = rescale_forest(forest)
@@ -338,7 +343,6 @@ def optimize_likelihood_params(forest, model, T, optimise, u=0):
     bounds.extend([[0.01, 10]] * (n_mu + n_la + n_psi))
     bounds.extend([[1e-3, 1 - 1e-3]] * n_p)
     bounds = np.array(bounds, np.float64)
-
 
     def get_real_params_from_optimised(ps):
         ps = np.maximum(np.minimum(ps, bounds[:, 1]), bounds[:, 0])
@@ -395,16 +399,6 @@ def plot_U(get_U, T):
     plt.show()
 
 
-def find_positive(sol, start, stop, upper_bound):
-    i = start + ((stop - start) // 2)
-    if i == start or i == stop - 1:
-        return i
-    value = sol[i, :]
-    if np.all(value >= 0) and np.all(value <= upper_bound) and np.any(value > 0):
-        return i
-    return find_positive(sol, start, i, upper_bound)
-
-
 def plot_P(k, get_U, ti, t0, MU, LA, PSI):
     t = np.linspace(ti, t0, 1001)
 
@@ -416,84 +410,8 @@ def plot_P(k, get_U, ti, t0, MU, LA, PSI):
     y0[k] = 1
     sol = odeint(pdf_Pany_l, y0, t)
 
-    cs = [1]
-    while np.all(sol[-1, :] <= 0):
-        i = find_positive(sol, 0, len(t))
-        vs = sol[i, :]
-        c = 1 / min(sol[i, sol[i, :] > 0])
-        cs.append(c)
-        vs *= c
-        print(ti, '->', t[i])
-        t = np.linspace(t[i], t0, 1001)
-        sol = odeint(pdf_Pany_l, vs, t)
-    print(np.prod(cs))
-
-
     plt.plot(t, sol[:, 0], 'b', label='logP_E(t)')
     plt.plot(t, sol[:, 1], 'g', label='logP_I(t)')
-    plt.legend(loc='best')
-    plt.xlabel('t')
-    plt.grid()
-    plt.show()
-
-def plot_P_simple(k, get_U, ti, t0, MU, LA, PSI):
-    t = np.linspace(ti, t0, 1001)
-
-    def pdf_Pany_l(P, t):
-        U = get_U(t)
-        return (MU.sum(axis=1) + LA.dot(1 - U) + PSI) * P - (MU + U * LA).dot(P)
-
-    y0 = np.zeros(len(PSI), np.float64)
-    y0[k] = 1
-    sol = odeint(pdf_Pany_l, y0, t)
-
-    plt.plot(t, sol[:, 0], 'b', label='logP_E(t)')
-    plt.plot(t, sol[:, 1], 'g', label='logP_I(t)')
-    plt.legend(loc='best')
-    plt.xlabel('t')
-    plt.grid()
-    plt.show()
-
-
-def plot_P_logP():
-    model = BirthDeathExposedInfectiousModel(mu=0.7299648936648243, la=1.421061063434435, psi=0.6069550954814479,
-                                                  p=0.44732297990706804)
-
-    T = 20
-    t0 = 5
-    t = np.linspace(t0, 0, 1001)
-    MU, LA, PSI, RHO = model.transition_rates, model.transmission_rates, model.removal_rates, model.ps
-    SIGMA = MU.sum(axis=1) + LA.sum(axis=1) + PSI
-    get_U = compute_U(T, MU=MU, LA=LA, PSI=PSI, RHO=RHO, SIGMA=SIGMA)
-
-    def pdf_Pany_l(P, t):
-        U = get_U(t)
-        dP = (MU.sum(axis=1) + LA.dot(1 - U) + PSI) * P \
-             - (MU + U * LA).dot(P)
-        return dP
-
-    def pdf_logPany_l(logP_plus_1, t):
-        U = get_U(t)
-        A = (MU.sum(axis=1) + LA.dot(1 - U) + PSI)
-        B = (MU + U * LA)
-        Q = np.exp(logP_plus_1)
-        P = Q - 1
-        dlogP_plus_1 = A - (B.dot(P) + A) / (P + 1)
-        return dlogP_plus_1
-
-    y0 = np.zeros(len(model.states), np.float64)
-    y0[1] = 1
-    sol = odeint(pdf_Pany_l, y0, t)
-
-    logy0 = np.zeros(len(model.states), np.float64)
-    logy0[1] = np.log(2)
-    logsol = odeint(pdf_logPany_l, logy0, t)
-    logsol = np.exp(logsol) - 1
-
-    plt.plot(t, sol[:, 0], 'b', label='P_E(t)')
-    plt.plot(t, sol[:, 1], 'g', label='P_I(t)')
-    plt.plot(t, logsol[:, 0], 'bv', label='logP_E(t)')
-    plt.plot(t, logsol[:, 1], 'gv', label='logP_I(t)')
     plt.legend(loc='best')
     plt.xlabel('t')
     plt.grid()
@@ -519,7 +437,7 @@ if __name__ == '__main__':
     optimise = BirthDeathExposedInfectiousModel(mu=1, la=1, psi=1, p=0)
     real_model = BirthDeathExposedInfectiousModel(mu=0.2523725112488919, la=0.907081384137969, psi=0.2692907505391973,
                                                   p=p)
-    print('Real likelihood is', loglikelihood_known_states_log(forest, T, real_model.transition_rates, real_model.transmission_rates, real_model.removal_rates, real_model.ps))
+    print('Real likelihood is', loglikelihood_known_states(forest, T, real_model.transition_rates, real_model.transmission_rates, real_model.removal_rates, real_model.ps))
     # prob_model = BirthDeathExposedInfectiousModel(mu=27.30227398105135, la=27.30227398105135, psi=27.30227398105135,
     #                                               p=p)
     # print('Prob likelihood is', loglikelihood_known_states(forest, T, prob_model.transition_rates, prob_model.transmission_rates, prob_model.removal_rates, prob_model.ps))
