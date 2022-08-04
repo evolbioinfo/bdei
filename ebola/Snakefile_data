@@ -1,7 +1,7 @@
 import os
 
 # To run locally:
-# snakemake --snakefile Snakefile_data --config folder=. --keep-going --cores 4 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
+# snakemake --snakefile Snakefile_data --config folder=data --keep-going --cores 4 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
 
 # To visualise the pipeline:
 # snakemake --snakefile Snakefile_data --dag | dot -Tsvg > pipeline_data.svg
@@ -257,9 +257,9 @@ rule years2days:
         python3 py/years2days.py --in_nwk {input} --out_nwk {output}
         """
 
-rule SLE:
+rule SLE_forest:
     '''
-    Extracts SLE tree.
+    Extracts a forest of SLE trees initiated on July,31 2014
     '''
     input:
         nwk = os.path.join(data_dir, 'pastml', '{i}', 'named.tree_timetree.{i}.nwk'),
@@ -367,5 +367,5 @@ internalScaleTimeScaling\t1''' >> {output.loc}.config.tab
 
         gotree download itol -i $tree -c {output.loc}.config.tab -o {output.loc} --format {wildcards.format}
 
-#        rm {output.loc}.config.tab
+        rm {output.loc}.config.tab
         """

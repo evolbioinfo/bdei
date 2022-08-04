@@ -1,7 +1,7 @@
 import os
 
 # To run locally:
-# snakemake --snakefile Snakefile_estimate --keep-going --cores 7 --config folder=.
+# snakemake --snakefile Snakefile_estimate --keep-going --cores 7 --config folder=. --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
 
 
 localrules: all
@@ -11,36 +11,33 @@ ebola_folder = os.path.join(folder, 'data', 'SLE')
 IS=range(10)
 ITS = [2.58, 5]
 Ns = [533, 800]
-#IS=[5]
-#ITS = [5]
-#Ns = [800]
 
 rule all:
     input:
         os.path.join(ebola_folder, 'estimates.tab'),
 
-rule estimate_params_it:
+rule estimate:
     '''
-    Estimate parameters on the simulated forest.
+    Estimate parameters on the forest.
     '''
     input:
         nwk = os.path.join(ebola_folder, 'SLE.{i}.days.nwk'),
     output:
-        est = os.path.join(ebola_folder, 'SLE.{i}_N={N}_it={it}.est'),
-        time = os.path.join(ebola_folder, 'SLE.{i}_N={N}_it={it}.time'),
+        est = os.path.join(ebola_folder, 'SLE.{i,[0-9]+}_N={N}_it={it}.est'),
+        time = os.path.join(ebola_folder, 'SLE.{i,[0-9]+}_N={N}_it={it}.time'),
     params:
         mem = 2000,
         name = 'estimate_{i}',
         qos = 'fast'
     threads: 3
+    singularity: "docker://evolbioinfo/bdei:v0.1.17"
     shell:
         """
-        N=800
         u=`grep -o ';' {input.nwk}  | wc -l`
         u=$(({wildcards.N}-u))
         psi=`bc -l <<< '1/{wildcards.it}'`
 
-        bdei_infer --psi $psi -u $u --threads {threads} -c 100 --nwk {input.nwk} --log {output.est} --time_log {output.time}
+        bdei_infer --psi $psi -u $u --threads {threads} -c 100 --nwk {input.nwk} --log {output.est} --time_log {output.time} --T 1
         """
 
 rule combine_estimates:
@@ -60,6 +57,7 @@ rule combine_estimates:
         qos = 'fast',
         labels = expand('{i}_{N_setting}_{setting}', N_setting=['N=' + str(_) for _ in Ns], setting=['ts=' + str(_) for _ in ITS], i=IS),
     threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
     shell:
         """
         python3 py/summary_table.py --forests {input.nwk} --estimates {input.est} --labels {params.labels} --tab {output.tab} --times {input.times} --time {output.time}

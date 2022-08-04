@@ -1,9 +1,7 @@
-import logging
 import os
 import re
 
 import pandas as pd
-import numpy as np
 from ete3 import Tree
 
 

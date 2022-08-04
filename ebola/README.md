@@ -47,7 +47,7 @@ that reconstructs the 10 SLE forests as described above.
 
 It can be rerun as:
 ```bash
-snakemake --snakefile Snakefile_data --keep-going  --config folder=. --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
+snakemake --snakefile Snakefile_data --keep-going  --config folder=data --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
 ```
 
 # BDEI parameter estimation
