@@ -5,6 +5,7 @@ from multiprocessing.pool import ThreadPool
 import numpy as np
 import pandas as pd
 from ete3 import Tree
+from matplotlib.pyplot import plot, show, clf
 from pybdei import initial_rate_guess
 from scipy.integrate import odeint
 from scipy.optimize import minimize, fsolve
@@ -359,12 +360,21 @@ def optimize_likelihood_params(forest, model, T, optimise, u=0):
                 PSI[opt_removal_rates]),
             RHO[opt_ps])
 
+    tried_mu = []
+    tried_la = []
+    tried_psi = []
+    tried_lk = []
+
     def get_v(ps):
         if np.any(pd.isnull(ps)):
             return np.nan
         get_real_params_from_optimised(ps)
         res = loglikelihood_known_states(forest, T, MU, LA, PSI, RHO, u)
         print("mu=", MU[0, 1] / scaling_factor, "la=", LA[1, 0] / scaling_factor, "psi=", PSI[1] / scaling_factor, "p=", RHO[1], "\t-->\t", res)
+        tried_mu.append(MU[0, 1] / scaling_factor)
+        tried_la.append(LA[1, 0] / scaling_factor)
+        tried_psi.append(PSI[1] / scaling_factor)
+        tried_lk.append(res)
         return -res
 
     x0 = get_optimised_params_from_real()
@@ -377,10 +387,21 @@ def optimize_likelihood_params(forest, model, T, optimise, u=0):
             vs = np.random.uniform(bounds[:, 0], bounds[:, 1])
 
         fres = minimize(get_v, x0=vs, method='TNC', bounds=bounds)
-        if fres.success and not np.any(np.isnan(fres.x)) and -fres.fun >= best_log_lh:
-            x0 = fres.x
-            best_log_lh = -fres.fun
-            break
+        if fres.success and not np.any(np.isnan(fres.x)):
+            plot(tried_mu, tried_lk)
+            show()
+            clf()
+            plot(tried_psi, tried_lk)
+            show()
+            clf()
+            plot(tried_la, tried_lk)
+            show()
+
+
+            if -fres.fun >= best_log_lh:
+                x0 = fres.x
+                best_log_lh = -fres.fun
+                break
         print('Attempt {} of trying to optimise the parameters: {}.'.format(i, -fres.fun))
     get_real_params_from_optimised(x0)
     MU, LA, PSI = MU / scaling_factor, LA / scaling_factor, PSI / scaling_factor
