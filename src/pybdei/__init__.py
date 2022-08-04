@@ -2,7 +2,6 @@ import os
 from collections import namedtuple
 
 import _pybdei
-import numpy
 import numpy as np
 from ete3 import Tree
 
@@ -77,15 +76,15 @@ def initial_rate_guess(forest, mu=None, la=None, psi=None):
                     i, e = sorted(n.children, key=lambda c: c.dist)
                     (internal_is if not i.is_leaf() else external_is).append(i)
                     (internal_es if not i.is_leaf() else external_es).append(e)
-        i_s_times = numpy.array([_.dist for _ in external_is])
-        i_tr_times = numpy.array([_.dist for _ in internal_is])
-        e_s_times = numpy.array([_.dist for _ in external_es])
-        e_tr_times = numpy.array([_.dist for _ in internal_es])
-        i_s_time = numpy.median(i_s_times)
-        e_s_time = numpy.median(e_s_times)
+        i_s_times = np.array([_.dist for _ in external_is])
+        i_tr_times = np.array([_.dist for _ in internal_is])
+        e_s_times = np.array([_.dist for _ in external_es])
+        e_tr_times = np.array([_.dist for _ in internal_es])
+        i_s_time = np.median(i_s_times)
+        e_s_time = np.median(e_s_times)
         # if it is a corner case when we only have tips, let's use sampling times
-        i_tr_time = numpy.median(i_tr_times) if len(i_tr_times) else i_s_time
-        e_tr_time = numpy.median(e_tr_times) if len(e_tr_times) else e_s_time
+        i_tr_time = np.median(i_tr_times) if len(i_tr_times) else i_s_time
+        e_tr_time = np.median(e_tr_times) if len(e_tr_times) else e_s_time
         mu_times = []
         if e_s_time > i_s_time:
             mu_times.append(e_s_time - i_s_time)
