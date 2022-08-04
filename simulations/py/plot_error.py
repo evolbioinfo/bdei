@@ -11,37 +11,9 @@ from statsmodels.stats.weightstats import CompareMeans
 RATE_PARAMETERS = ['mu', 'lambda', 'psi']
 EPIDEMIOLOGIC_PARAMETERS = ['R_naught', 'infectious_time', 'incubation_period']
 PARAMETERS = RATE_PARAMETERS + ['p'] + EPIDEMIOLOGIC_PARAMETERS
-
-
-def asses_CIs(types):
-    for type in types:
-        mask = df['type'] == type
-        if 'PyBDEI' in type:
-            print('\n================{}==============='.format(type))
-            n_observations = sum(mask)
-            for par in RATE_PARAMETERS:
-                df.loc[mask, '{}_within_CI'.format(par)] \
-                    = np.less_equal(df.loc[mask, '{}_min'.format(par)], real_df[par]) \
-                      & np.less_equal(real_df[par], df.loc[mask, '{}_max'.format(par)])
-                print('{}:\t{:.1f}% within CIs'
-                      .format(par, 100 * sum(df.loc[mask, '{}_within_CI'.format(par)]) / n_observations))
-                df.loc[mask, '{}_CI_relative_width'.format(par)] \
-                    = 100 * (df.loc[mask, '{}_max'.format(par)] - df.loc[mask, '{}_min'.format(par)]) / real_df[par]
-                print('{}:\t{:.1f}% median CI width'
-                      .format(par, (df.loc[mask, '{}_CI_relative_width'.format(par)].median())))
-        elif type != 'real':
-            print('\n================{}==============='.format(type))
-            n_observations = sum(mask)
-            for par in EPIDEMIOLOGIC_PARAMETERS:
-                df.loc[mask, '{}_within_CI'.format(par)] \
-                    = np.less_equal(df.loc[mask, '{}_min'.format(par)], real_df[par]) \
-                      & np.less_equal(real_df[par], df.loc[mask, '{}_max'.format(par)])
-                print('{}:\t{:.1f}% within CIs'
-                      .format(par, 100 * sum(df.loc[mask, '{}_within_CI'.format(par)]) / n_observations))
-                df.loc[mask, '{}_CI_relative_width'.format(par)] \
-                    = 100 * (df.loc[mask, '{}_max'.format(par)] - df.loc[mask, '{}_min'.format(par)]) / real_df[par]
-                print('{}:\t{:.1f}% median CI width'
-                      .format(par, (df.loc[mask, '{}_CI_relative_width'.format(par)].median())))
+par2greek = {'mu': u'\u03bc', 'lambda': u'\u03bb', 'psi': u'\u03c8', 'p': '\u03c1',
+             'R_naught': u'\u0052\u2080' + '=' + u'\u03bb\u002F\u03c8',
+             'infectious_time': 'infectious time 1' + u'\u002F\u03c8', 'incubation_period': 'incubation period 1' + u'\u002F\u03bc'}
 
 
 if __name__ == "__main__":
@@ -67,8 +39,6 @@ if __name__ == "__main__":
         for par in PARAMETERS:
             df.loc[mask, '{}_error'.format(par)] = (df.loc[mask, par] - real_df[par]) / real_df[par]
 
-    asses_CIs(types)
-
     error_columns = [col for col in df.columns if 'error' in col]
     df[['type'] + PARAMETERS + error_columns].to_csv(params.tab, sep='\t')
 
@@ -85,9 +55,10 @@ if __name__ == "__main__":
     for pars, ax in ((RATE_PARAMETERS, ax1), (EPIDEMIOLOGIC_PARAMETERS, ax2)):
         data = []
         par2type2avg_error = defaultdict(lambda: dict())
+
         for type in types:
             for par in pars:
-                data.extend([[par, _, type]
+                data.extend([[par2greek[par], _, type]
                              for _ in df.loc[df['type'] == type, '{}_error'.format(par)].apply(abs_error_or_1)])
                 par2type2avg_error[par][type] = \
                     '{:.2f} ({:.2f})'.format(np.mean(np.abs(df.loc[df['type'] == type, '{}_error'.format(par)])),
