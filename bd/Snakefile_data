@@ -1,0 +1,69 @@
+import os
+
+# To run locally:
+# snakemake  --snakefile Snakefile_data --keep-going --cores 4 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
+
+# To run on bioevo (change shakemake activation below if you are not Anna ;) :
+# source ~/.bashrc && conda activate snakemake && module load singularity/3.8.5 && cd /pasteur/zeus/projets/p01/Evolbioinfo/users/azhukova/projects/bdei/simulations
+# snakemake --snakefile Snakefile_data --keep-going --cores 1 --use-singularity --singularity-prefix $HOME/.singularity --singularity-args "-B /pasteur" --cluster "sbatch -c {threads} -o logs/{params.name}.log -e logs/{params.name}.log --mem {params.mem} -p bioevo --qos={params.qos}  -A bioevo -J {params.name}" --jobs 300
+
+
+localrules: all
+
+os.makedirs('logs', exist_ok=True)
+sim_folder = os.path.abspath('.')
+DATASETS = ['small']
+REPETITIONS = list(range(100))
+
+
+rule all:
+    input:
+        expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.est'), i=range(100), dataset=DATASETS),
+
+
+rule prepare_phylodeep:
+    '''
+    Parses PhyloDeep data.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', 'trees.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', 'TARGET.csv'),
+    output:
+        nwk = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.nwk'), i=range(100)),
+        log = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.log'), i=range(100)),
+    params:
+        mem = 2000,
+        name = 'trees_{dataset}',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/split_trees.py --in_nwk {input.nwk} --in_log {input.log} --out_nwks {output.nwk} --out_logs {output.log}
+        """
+
+
+rule estimate_params_p_fixed:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.est'),
+    params:
+        mem = 2000,
+        name = 'estimate_{type}_{i}',
+        qos = 'fast'
+    threads: 2
+    shell:
+        """
+        u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
+        p=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
+        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
+        cat {input.log}
+
+        cd ../src/pybdei
+        python3 bd_estimator.py --nwk {input.nwk} --est {output.est} --p $p
+        """

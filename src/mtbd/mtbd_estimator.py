@@ -1,16 +1,14 @@
 import os
 from itertools import chain
+from math import sqrt
 from multiprocessing.pool import ThreadPool
 
 import numpy as np
-import pandas as pd
-from ete3 import Tree
-from matplotlib.pyplot import plot, show, clf
-from pybdei import initial_rate_guess
-from scipy.integrate import odeint
-from scipy.optimize import minimize, fsolve
 
-from treesimulator.mtbd_models import BirthDeathExposedInfectiousModel
+RTOL = 100 * np.finfo(np.float64).eps
+import pandas as pd
+from scipy.integrate import odeint
+from scipy.optimize import minimize, fsolve, NonlinearConstraint, LinearConstraint
 
 N_U_STEPS = int(1e7)
 
@@ -97,7 +95,8 @@ def compute_U(T, MU, LA, PSI, RHO, SIGMA, nsteps=N_U_STEPS):
         dU = (SIGMA - LA.dot(U)) * U - MU.dot(U) - PSI_NOT_RHO
         return dU
 
-    sol = odeint(pdf_U, y0, tt)
+    sol = odeint(pdf_U, y0, tt, rtol=RTOL)
+    sol = np.maximum(sol, 0)
 
     def get_U(t):
         t = max(0, min(t, T))
@@ -131,8 +130,8 @@ def find_index_within_bounds(sol, start, stop, upper_bound, lower_bound=0):
     :return: the index i that satisfies the above conditions
     """
     i = start + ((stop - start) // 2)
-    if i == start or i == stop - 1:
-        return i
+    if i == start or stop <= start:
+        return start
     value = sol[i, :]
     if np.all(value >= lower_bound) and np.all(value <= upper_bound) and np.any(value > lower_bound):
         return i
@@ -155,43 +154,117 @@ def get_P(ti, l, t0, get_U, MU, LA, SIGMA):
     :return: a tuple containing an array of (potentially rescaled) branch evolution probabilities at time t0:
         [CP^{(i)}_{0l}(t0), .., CP^{(i)}_{ml}(t0)] and a log of the scaling factor: logC
     """
+    y0 = np.zeros(LA.shape[0], np.float64)
+    y0[l] = 1
+
+    if t0 == ti:
+        return y0, 0
 
     def pdf_Pany_l(P, t):
         U = get_U(t)
         return (SIGMA - LA.dot(U)) * P - (MU + U * LA).dot(P)
 
+    nsteps = 10
+    tt = np.linspace(ti, t0, nsteps)
+    sol = odeint(pdf_Pany_l, y0, tt, rtol=RTOL)
+
+    if np.any(sol[-1, :] < 0) or np.all(sol[-1, :] == 0) or np.any(sol[-1, :] > 1):
+        return get_P_Euler(ti, l, t0, get_U, MU, LA, SIGMA)
+
+    # # If there was an underflow during P_{kl}^{(i)}(t) calculations, we find a time tt[i] before the problem happened
+    # # and use its values sol[i, :] as new initial values for a rescaled ODE calculation,
+    # # which we solve for CP_{kl}^{(i)}(t). The new initial values become:
+    # # CP_{kl}^{(i)}(tt[i]) = C sol[i, k],
+    # # where C = 1 / min_positive(sol[i, :]).
+    # cs = [1]
+    # while np.any(sol[-1, :] < 0) or np.all(sol[-1, :] == 0) or np.any(sol[-1, :] > np.prod(cs)):
+    #     tzero = t0
+    #     i = find_index_within_bounds(sol, 0, len(tt), np.prod(cs))
+    #     while i == 0:
+    #         if nsteps == 10000:
+    #             return np.zeros(len(sol)), 0
+    #         nsteps *= 10
+    #         if (ti - tzero) <= 4 * np.finfo(np.float64).eps:
+    #             tzero = tzero + (ti - tzero) / 2
+    #         tt = np.linspace(ti, tzero, nsteps)
+    #         sol = odeint(pdf_Pany_l, y0, tt, rtol=RTOL)
+    #         i = find_index_within_bounds(sol, 0, len(tt), np.prod(cs), 0)
+    #
+    #     vs = sol[i, :]
+    #
+    #     # print(i, sol[i, :], np.all(sol[i, :] >= 0), np.any(sol[i, :] > 0))
+    #     c = 1 / min(sol[i, sol[i, :] > 0])
+    #     cs.append(c)
+    #     y0 = vs * c
+    #     ti = tt[i]
+    #     nsteps = 100
+    #     tt = np.linspace(ti, t0, nsteps)
+    #     sol = odeint(pdf_Pany_l, y0, tt, rtol=RTOL)
+
+    return np.maximum(sol[-1, :], 0), 0 #np.log(cs).sum()
+
+
+def get_P_Euler(ti, l, t0, get_U, MU, LA, SIGMA):
+    """
+    Calculates P_{kl}^{(i)}(t0) for k in 1:m, where the initial condition is specified at time ti >= t0 (time of node i):
+    P_{kl}^{(i)}(ti) = 0 for all k=l;
+    P_{ll}^{(i)}(ti) = 1.
+
+    :param ti: time for the initial condition (at node i)
+    :param l: state of node i (the only state for which the initial condition is non-zero)
+    :param t0: time to calculate the values at (t0 <= ti)
+    :param get_U: a function to calculate an array of unsampled probabilities for a given time: t -> [U_1, .., U_m]
+    :param MU: an array of state transition rates
+    :param LA: an array of transmission rates
+    :param SIGMA:  an array of rate sums: MU.sum(axis=1) + LA.sum(axis=1) + PSI, where PSI is the array of removal rates
+    :return: a tuple containing an array of (potentially rescaled) branch evolution probabilities at time t0:
+        [CP^{(i)}_{0l}(t0), .., CP^{(i)}_{ml}(t0)] and a log of the scaling factor: logC
+    """
     y0 = np.zeros(LA.shape[0], np.float64)
     y0[l] = 1
 
-    nsteps = 100
-    tt = np.linspace(ti, t0, nsteps)
-    sol = odeint(pdf_Pany_l, y0, tt)
+    if t0 == ti:
+        return y0, 0
 
-    # If there was an underflow during P_{kl}^{(i)}(t) calculations, we find a time tt[i] before the problem happened
-    # and use its values sol[i, :] as new initial values for a rescaled ODE calculation,
-    # which we solve for CP_{kl}^{(i)}(t). The new initial values become:
-    # CP_{kl}^{(i)}(tt[i]) = C sol[i, k],
-    # where C = 1 / min_positive(sol[i, :]).
+    def pdf_Pany_l(P, t):
+        U = get_U(t)
+        return (SIGMA - LA.dot(U)) * P - (MU + U * LA).dot(P)
+
+    dt = (ti - t0) / 10
+    tau = np.inf
+
     cs = [1]
-    while np.any(sol[-1, :] < 0) or np.all(sol[-1, :] == 0) or np.any(sol[-1, :] > np.prod(cs)):
-        i = find_index_within_bounds(sol, 0, len(tt), np.prod(cs))
-        if i == 0:
-            nsteps *= 10
-            tt = np.linspace(ti, t0, nsteps)
-            sol = odeint(pdf_Pany_l, y0, tt)
+    while tau > 1e-6 and dt > 1e-3:
+        dy_dt = pdf_Pany_l(y0, ti)
+        yj = y0 - dt * dy_dt
+
+        if np.any(yj < 0) or np.any(yj > 1) or np.all(yj == 0):
+            dt /= 2
+            # print('div', yj, dy_dt)
             continue
 
-        vs = sol[i, :]
+        yjj = y0 - dt / 2 * dy_dt
+        yjj = yjj - dt / 2 * pdf_Pany_l(yjj, ti - dt / 2)
+        tau = np.min(yjj - yj)
+        if abs(tau) > 1e-6:
+            dt = 0.9 * dt * min(2, max(0.3, sqrt(1e-6 / 2 / abs(tau))))
+    # print('set dt to ', dt)
 
-        c = 1 / min(sol[i, sol[i, :] > 0])
-        cs.append(c)
-        y0 = vs * c
-        ti = tt[i]
-        nsteps = 100
-        tt = np.linspace(ti, t0, nsteps)
-        sol = odeint(pdf_Pany_l, y0, tt)
-
-    return np.maximum(sol[-1, :], 0), np.log(cs).sum()
+    tj = ti
+    yj = np.array(y0)
+    while tj > t0:
+        yj_next = np.minimum(yj - dt * pdf_Pany_l(yj, tj), np.prod(cs))
+        if np.any(yj_next < 0) or np.all(yj_next == 0):
+            c = max(1 / min(yj[yj > 0]), 2)
+            cs.append(c)
+            yj *= c
+            continue
+        yj = yj_next
+        tj -= dt
+    # if len(cs) > 1:
+    #     print(cs)
+    #     exit(0)
+    return np.maximum(yj, 0), np.log(cs).sum()
 
 
 def rescale_log_array(loglikelihood_array):
@@ -244,6 +317,7 @@ def loglikelihood_known_states(forest, T, MU, LA, PSI, RHO, u=0, threads=1):
 
     def _work(n):
         ti = getattr(n, TI)
+        # P, factors = get_P_Euler(t0=ti - n.dist, l=getattr(n, STATE_K), ti=ti, get_U=get_U, MU=MU, LA=LA, SIGMA=SIGMA)
         P, factors = get_P(t0=ti - n.dist, l=getattr(n, STATE_K), ti=ti, get_U=get_U, MU=MU, LA=LA, SIGMA=SIGMA)
         # if np.all(P == 0):
         #     plot_P(getattr(n, STATE_K), get_U, ti, ti - n.dist, MU, LA, PSI)
@@ -283,6 +357,7 @@ def loglikelihood_known_states(forest, T, MU, LA, PSI, RHO, u=0, threads=1):
                 P_lc *= np.exp(diff_lc)
                 P_rc *= np.exp(diff_rc)
                 LA_k = LA[k, :]
+                # print(P_lc[k], LA, LA_k, P_rc, P_rc[k], P_lc, max_factors)
                 res += np.log(P_lc[k] * LA_k.dot(P_rc) + P_rc[k] * LA_k.dot(P_lc)) - 2 * max_factors
             if np.isnan(res):
                 break
@@ -325,11 +400,11 @@ def optimize_likelihood_params(forest, model, T, optimise, u=0):
     :param u: number of hidden trees, where no tip got sampled
     :return: the values of optimised parameters and the corresponding loglikelihood: (MU, LA, PSI, RHO, best_log_lh)
     """
-    scaling_factor = 1
-    # scaling_factor = rescale_forest(forest)
     MU, LA, PSI, RHO = model.transition_rates, model.transmission_rates, model.removal_rates, model.ps
-    MU, LA, PSI = MU * scaling_factor, LA * scaling_factor, PSI * scaling_factor
-    print('rescaled everything by {}'.format(scaling_factor))
+    # scaling_factor = 1
+    # scaling_factor = rescale_forest(forest)
+    # MU, LA, PSI = MU * scaling_factor, LA * scaling_factor, PSI * scaling_factor
+    # print('rescaled everything by {}'.format(scaling_factor))
 
     bounds = []
     opt_transition_rates = (optimise.transition_rates > 0)
@@ -341,7 +416,7 @@ def optimize_likelihood_params(forest, model, T, optimise, u=0):
     n_psi = opt_removal_rates.sum()
     n_p = opt_ps.sum()
 
-    bounds.extend([[1e-3, 10e3]] * (n_mu + n_la + n_psi))
+    bounds.extend([[1e-3, 1e2]] * (n_mu + n_la + n_psi))
     bounds.extend([[1e-3, 1 - 1e-3]] * n_p)
     bounds = np.array(bounds, np.float64)
 
@@ -360,77 +435,66 @@ def optimize_likelihood_params(forest, model, T, optimise, u=0):
                 PSI[opt_removal_rates]),
             RHO[opt_ps])
 
-    tried_mu = []
-    tried_la = []
-    tried_psi = []
-    tried_lk = []
+    # tried_mu = []
+    # tried_la = []
+    # tried_psi = []
+    # tried_lk = []
 
     def get_v(ps):
         if np.any(pd.isnull(ps)):
             return np.nan
         get_real_params_from_optimised(ps)
+        print(ps)
         res = loglikelihood_known_states(forest, T, MU, LA, PSI, RHO, u)
-        print("mu=", MU[0, 1] / scaling_factor, "la=", LA[1, 0] / scaling_factor, "psi=", PSI[1] / scaling_factor, "p=", RHO[1], "\t-->\t", res)
-        tried_mu.append(MU[0, 1] / scaling_factor)
-        tried_la.append(LA[1, 0] / scaling_factor)
-        tried_psi.append(PSI[1] / scaling_factor)
-        tried_lk.append(res)
+        # print("mus=\n", MU / scaling_factor, "\nlas=", LA / scaling_factor, "\npsis=\n", PSI / scaling_factor, "\nps=\n", RHO, "\t-->\t", res)
+        print(ps, "\t-->\t", res)
+        # tried_mu.append(MU[0, 1] / scaling_factor)
+        # tried_la.append(LA[1, 0] / scaling_factor)
+        # tried_psi.append(PSI[1] / scaling_factor)
+        # tried_lk.append(res)
         return -res
 
     x0 = get_optimised_params_from_real()
     best_log_lh = -get_v(x0)
 
+    def R0(vs):
+        get_real_params_from_optimised(vs)
+        non_zero_psi = PSI >= 0
+        return np.max(LA[non_zero_psi].sum(axis=1) / PSI[non_zero_psi])
+
+    cons = (NonlinearConstraint(R0, 0.2, 100), LinearConstraint(np.eye(len(x0)), bounds[:, 0], bounds[:, 1]),)
+
     for i in range(10):
         if i == 0:
             vs = x0
         else:
-            vs = np.random.uniform(bounds[:, 0], bounds[:, 1])
+            keep_searching = True
+            while keep_searching:
+                keep_searching = False
+                vs = np.random.uniform(bounds[:, 0], bounds[:, 1])
+                for c in cons:
+                    if not isinstance(c, LinearConstraint):
+                        val = c.fun(vs)
+                        if c.lb > val or c.ub < val:
+                            keep_searching = True
+                            break
 
-        fres = minimize(get_v, x0=vs, method='TNC', bounds=bounds)
+
+        fres = minimize(get_v, x0=vs, method='COBYLA', bounds=bounds, constraints=cons)
         if fres.success and not np.any(np.isnan(fres.x)):
-            plot(tried_mu, tried_lk)
-            show()
-            clf()
-            plot(tried_psi, tried_lk)
-            show()
-            clf()
-            plot(tried_la, tried_lk)
-            show()
-
-
+            # plot(tried_mu, tried_lk)
+            # show()
+            # clf()
+            # plot(tried_psi, tried_lk)
+            # show()
+            # clf()
+            # plot(tried_la, tried_lk)
+            # show()
             if -fres.fun >= best_log_lh:
                 x0 = fres.x
                 best_log_lh = -fres.fun
                 break
         print('Attempt {} of trying to optimise the parameters: {}.'.format(i, -fres.fun))
     get_real_params_from_optimised(x0)
-    MU, LA, PSI = MU / scaling_factor, LA / scaling_factor, PSI / scaling_factor
+    # MU, LA, PSI = MU / scaling_factor, LA / scaling_factor, PSI / scaling_factor
     return MU, LA, PSI, RHO, best_log_lh
-
-
-if __name__ == '__main__':
-    tree = Tree('/home/azhukova/projects/bdei/simulations/medium/trees/tree.1.nwk')
-    T = 0
-    for n in tree.traverse('preorder'):
-        ti = (0 if n.is_root() else getattr(n.up, TI)) + n.dist
-        n.add_feature(TI, ti)
-        T = max(T, ti)
-        n.add_feature(STATE_K, 1)
-
-    forest = [tree]
-    p = 0.6225767763228239
-    real_mu = 0.2523725112488919
-    real_la = 0.907081384137969
-    real_psi = 0.2692907505391973
-
-    rate = initial_rate_guess(forest).pop()
-    model = BirthDeathExposedInfectiousModel(mu=rate, la=rate, psi=rate, p=p)
-    optimise = BirthDeathExposedInfectiousModel(mu=1, la=1, psi=1, p=0)
-    real_model = BirthDeathExposedInfectiousModel(mu=real_mu, la=real_la, psi=real_psi, p=p)
-
-    print('Real values and likelihood are:\n', "mu=", real_mu, "la=", real_la, "psi=", real_psi, "p=", p, "\t-->\t",
-          loglikelihood_known_states(forest, T, real_model.transition_rates, real_model.transmission_rates,
-                                     real_model.removal_rates, real_model.ps))
-    # # model = real_model
-    MU, LA, PSI, RHO, lk = optimize_likelihood_params(forest, model, T, optimise)
-    print("mu=", MU[0, 1], "la=", LA[1, 0], "psi=", PSI[1], "p=", RHO[1], "lk=", lk)
