@@ -1,4 +1,4 @@
-from pybdei import infer
+from pybdei import infer, ERRORS, DEBUG, WARNINGS, INFO, PYBDEI_VERSION
 
 
 def main():
@@ -58,7 +58,8 @@ def main():
 
     result_group = parser.add_argument_group('output-related arguments')
     result_group.add_argument('-c', '--CI_repetitions', default=0,
-                              help="Number of repetitions for CI calculation (the higher-the more precise). "
+                              help="Number of repetitions for CI calculation "
+                                   "(the higher, the more precise but also longer; a typical value is 100). "
                                    "If not specified, CIs will not be calculated.",
                               type=int)
     result_group.add_argument('--log', default=None, type=str,
@@ -69,11 +70,19 @@ def main():
                                    "If not given, the time will only be printed in the stdout")
 
     parser.add_argument('-t', '--threads', help="number of threads for parallelization.", type=int, default=1)
+    parser.add_argument('--log_level',
+                        help="level of logging information "
+                             "(the lower, the less information will be printed to the output). "
+                             "Possible levels are: {} (errors only), {} (errors+warnings), {} (errors+warnings+info), "
+                             "{} (errors+warnings+info+debug).".format(ERRORS, WARNINGS, INFO, DEBUG), type=int,
+                        default=INFO)
+    parser.add_argument('-v', '--version', action='version', version='%(prog)s {version}'.format(version=PYBDEI_VERSION))
 
     params = parser.parse_args()
     res, time = infer(**vars(params))
     print(res)
     print(time)
+
     if params.log:
         with open(params.log, 'w+') as f:
             f.write('mu\tmu_CI\tla\tla_CI\tpsi\tpsi_CI\tp\tp_CI\tR_naught\tincubation_period\tinfectious_time\n'

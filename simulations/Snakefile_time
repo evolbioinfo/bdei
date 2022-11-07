@@ -27,7 +27,7 @@ rule times:
     '''
     input:
         time = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.threads={cores}.time'), \
-            i=REPETITIONS, cores=range(1, 5)),
+            i=REPETITIONS, cores=range(1, 3)),
     output:
         tab = os.path.join(sim_folder, '{dataset}', 'times.tab'),
     params:
@@ -56,15 +56,15 @@ rule estimate_params_p_fixed_threads:
         qos = 'fast',
         pattern = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.threads=$t.time'),
     threads: 4
-    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    singularity: "docker://evolbioinfo/bdei:v0.2"
     shell:
         """
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
         cat {input.log}
 
-        for t in $(seq 1 4)
+        for t in $(seq 1 3)
         do
             echo "bdei_infer --p $p -t $t --nwk {input.nwk} --time_log {params.pattern}"
-            bdei_infer --p $p --nwk {input.nwk} --time_log {params.pattern} -t $t
+            bdei_infer --p $p --nwk {input.nwk} --time_log {params.pattern} -t $t -c 100
         done
         """

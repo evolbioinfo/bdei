@@ -19,7 +19,7 @@ rule all:
     input:
         expand(os.path.join(sim_folder, 'large', 'clusters', 'cluster.{i}.est'), i=REPETITIONS),
         expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.est'), i=REPETITIONS, dataset=DATASETS),
-        expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.est_{param}'), i=REPETITIONS, dataset=DATASETS, param=['mu', 'la', 'psi']),
+        expand(os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.est_{param}'), i=REPETITIONS, param=['mu', 'la', 'psi']),
 
 rule estimate_params_p_fixed:
     '''
@@ -35,7 +35,7 @@ rule estimate_params_p_fixed:
         name = 'estimate_{type}_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    singularity: "docker://evolbioinfo/bdei:v0.2"
     shell:
         """
         u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
@@ -61,7 +61,7 @@ rule estimate_params_mu_fixed:
         name = 'estimate_{type}_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    singularity: "docker://evolbioinfo/bdei:v0.2"
     shell:
         """
         u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
@@ -86,7 +86,7 @@ rule estimate_params_la_fixed:
         name = 'estimate_{type}_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    singularity: "docker://evolbioinfo/bdei:v0.2"
     shell:
         """
         u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
@@ -111,7 +111,7 @@ rule estimate_params_psi_fixed:
         name = 'estimate_{type}_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    singularity: "docker://evolbioinfo/bdei:v0.2"
     shell:
         """
         u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`

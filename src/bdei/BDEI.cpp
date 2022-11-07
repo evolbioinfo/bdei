@@ -11,7 +11,15 @@
 // khi-2  95%  : 3.84, 5.99, 7.81 , 9.49
 double khi_2_95[] = {0., 3.84, 5.99, 7.81, 9.49};// dat wiki https://fr.wikipedia.org/wiki/Loi_du_χ²
 
-int debug = 0;
+
+// following python logging values
+const int debugVal = 3;
+const int infoVal = 2;
+const int warningVal = 1;
+const int errorVal = 0;
+
+int debug = errorVal;
+
 int size_pool = std::thread::hardware_concurrency();
 std::mt19937_64 rand_gen;
 
@@ -211,19 +219,6 @@ void Mult(R A[][2], R B[][2], R AB[][2]) {
             }
 }
 
-template<class R>
-void Print(string s, R MI[2][2]) {
-    cout << s << " = ( ";
-    for (int i = 0; i < 2; ++i) {
-
-        cout << "  ( ";
-        for (int j = 0; j < 2; ++j)
-            cout << MI[i][j] << " ";
-        cout << " )";
-    }
-    cout << " ) " << endl;
-}
-
 template<typename R>
 ostream &operator<<(ostream &cout, const vector<R> &v) {
     size_t n = v.size() - 1;;
@@ -272,11 +267,10 @@ public:
             piI = RR(1.) - piE;
         }
 
-
-        if (debug > 2)
-            cout << setprecision(10) << " ** mu = " << mu << " , lambda =  " << la
-                 << " , psi = " << psi << " , p = " << p
-                 << " , freqs = " << piE << " , " << piI << endl;
+//        if (debug >= debugVal)
+//            cout << setprecision(10) << " ** mu = " << mu << " , lambda =  " << la
+//                 << " , psi = " << psi << " , p = " << p
+//                 << " , freqs = " << piE << " , " << piI << endl;
 //        assert(piI >= 0);
 //        assert(piI <= 1.);
         /*
@@ -286,9 +280,7 @@ public:
         //  la uc^2 - c1 uc + c0 =0
         RR delta = (c1) * (c1) - 4 * la * c0;
         // assert(delta>=R(0.));
-        if (debug > 2) cout << " delta" << delta << endl;
         uc = (c1 - sqrt(delta)) / (2 * la);
-        if (debug > 2) cout << " Uc = " << uc << endl;
         Uc[0] = Uc[1] = uc;
         // [ [-mu, mu ], [la Uc,-c1 +  la Uc ]]
         // M =[[ a,b] [c,d]]
@@ -301,11 +293,8 @@ public:
         RR a = -mu, d = -c1 + la * uc;
         RR b = mu, c = la * uc;
         RR delta1 = (a - d) * (a - d) + 4. * b * c;
-        if (debug > 2) cout << " delta " << delta1 << endl;
         lm = 0.5 * (a + d - sqrt(delta1));// lm
         lp = 0.5 * (a + d + sqrt(delta1));//lp
-        //  infini approximation
-        if (debug > 2) cout << " cexp1 = " << lm << " cexp2 " << lp << endl;
         //  P = [ [b,b],[a-lp, a- lm] ]
         P[0][0] = b;
         P[0][1] = b;
@@ -341,7 +330,6 @@ public:
             RR cb = theta;
             RR ca = RR(1.) - cb;
             RR f = ca * y0[1 + i] + cb * y1[1 + i];
-            // cout << i <<" " << j << " " <<  theta << " " << dt << " " << f << endl;
             return f;
         }
         F(y0 + 1, dy0);
@@ -397,7 +385,6 @@ public:
         RR bb = a1 - h * (-c1 * a1 + la * a0);// term y0
         RR cc = a0 - h * (-c1 * a0 + c0) - b[1]; // term ctn
         RR delta = bb * bb - 4 * aa * cc;
-        //cout << " delta = " << delta << endl;
         int nF = 0, k = 0;
         if (delta < 0) return 0;
         RR delta2 = sqrt(delta);
@@ -446,7 +433,7 @@ public:
         // exp(min(lm,lp)*T) = eps
         R T = log(eps) / min(val(lm), val(lp));
 
-        cout << " err " << exp(min(lm, lp) * T) << endl;
+        if (debug >= debugVal) cout << " err " << exp(min(lm, lp) * T) << endl;
         RR f[2], df[2];
         RR *yp = y;
         R t = 0, tp = 0;//lt=exp(-t*cc);
@@ -454,7 +441,7 @@ public:
         *yp++ = t;
         *yp++ = y0[0];
         *yp++ = y0[1];
-        cout << t << " " << y0[0] << " " << y0[1] << endl;
+        if (debug >= debugVal) cout << t << " " << y0[0] << " " << y0[1] << endl;
         //int i=0;
         for (int i = 0; i < nx; ++i) {
             tp = t;
@@ -472,8 +459,8 @@ public:
             yy[0] = t;
             yy[1] = yp[1] + dt * f[0];
             yy[2] = yp[2] + dt * f[1];
-            if (debug > 4)
-                cout << t << " " << yy[1] << " " << yy[2] << " " << max(abs(yy[1] - uc), abs(yy[2] - uc)) << endl;
+//            if (debug >= debugVal)
+//                cout << t << " " << yy[1] << " " << yy[2] << " " << max(abs(yy[1] - uc), abs(yy[2] - uc)) << endl;
             if (max(abs(yy[1] - uc), abs(yy[2] - uc)) < eps) return i + 1;
         }
         return nx;
@@ -493,14 +480,14 @@ public:
             R h = 0.1;
             RR b[] = {y[0] - h * f[0], y[1] - h * f[1]};
             int ns = F(Y, h, b);
-            cout << ns << " : " << Y[0] << " " << Y[1] << ", " << Y[2] << " " << Y[3] << endl;
+//            if (debug >= debugVal) cout << ns << " : " << Y[0] << " " << Y[1] << ", " << Y[2] << " " << Y[3] << endl;
         }
         RR *yp = y;
         R t = 0;
         *yp++ = t;
         *yp++ = y0[0];
         *yp++ = y0[1];
-        if (debug > 4) cout << t << " " << y0[0] << " " << y0[1] << endl;
+//        if (debug >= debugVal) cout << t << " " << y0[0] << " " << y0[1] << endl;
         int ns = 0;
         for (int i = 0; i < n; ++i) {
             RR *yp = y + 3 * i;
@@ -530,7 +517,7 @@ public:
             yy[1] = Y[ii];
             yy[2] = Y[ii + 1];
 
-            if (debug > 4) cout << t << " " << yy[1] << " " << yy[2] << endl;
+//            if (debug >= debugVal) cout << t << " " << yy[1] << " " << yy[2] << endl;
             if (max(abs(yy[1] - uc), abs(yy[2] - uc)) < eps)
                 return i + 1;
         }
@@ -556,13 +543,6 @@ public:
         // et P donnee initiale en tb,
         R t = 0;// temps final
 
-        if (debug > 4) cout << shift << " ODEb " << id << " " << " " << P[0] << " " << P[1] << endl;
-        if (debug > 2) {
-            RR Ut[] = {fU(T + t, 0), fU(T + t, 1)};
-            cout << shift << "  TT \n" << shift << "  " << T + t << " " << P[0] << " " << P[1]
-                 << " " << Ut[0] << " " << Ut[1] << " "
-                 << " 0 " << id << " TT " << endl;
-        }
         int n = 0; // nb iteration
         // R t0=T;
         while (1) {
@@ -605,16 +585,16 @@ public:
             for (int k = 0; k < np; ++k) {
                 int k2 = k + k, i0 = k2, i1 = i0 + 1;
                 RR b[2] = {P[i0], P[i1]};
-                if (debug > 4)
-                    cout << shift << "  " << T + t << " " << P[i0] << " " << P[i1]
-                         << " " << Ut[0] << " " << Ut[1] << " " << id << " " << dt << "  TT " << endl;
+//                if (debug >= debugVal)
+//                    cout << shift << "  " << T + t << " " << P[i0] << " " << P[i1]
+//                         << " " << Ut[0] << " " << Ut[1] << " " << id << " " << dt << "  TT " << endl;
                 Mult(M1, b, P + k2);
             }
             if (fini) break;
         }
-        if (debug > 2)
-            cout << shift << " ODEe " << id << " [ " << T << " .. " << T + t << "] , " << P[0] << " " << P[1] << " np="
-                 << np << endl;
+//        if (debug >= debugVal)
+//            cout << shift << " ODEe " << id << " [ " << T << " .. " << T + t << "] , " << P[0] << " " << P[1] << " np="
+//                 << np << endl;
 
         return n;
     }
@@ -736,7 +716,6 @@ TreeBranch *Read(ifstream &f, int i) {
                 throw std::invalid_argument("Invalid newick format of the input tree(s)");
             }
         }
-//        cout << p->id << " : " << p->value << endl;
     } else {
         if (c != ';') {
             throw std::invalid_argument("Invalid newick format of the input tree(s)");
@@ -747,28 +726,13 @@ TreeBranch *Read(ifstream &f, int i) {
     return p;
 }
 
-void Print(ostream &f, TreeBranch *tn, int lvl = 0) {
-    cout << endl;
-    for (int i = 0; i < lvl; ++i)
-        cout << "  ";
-    cout << " " << tn->t << " , " << tn->value << " tf= " << tn->t + tn->value << ": " << endl;
-    for (int i = 0; i < lvl; ++i)
-        cout << "  ";
-    cout << " ";
-    for (int step = 0; step < 2; ++step)
-        if (tn->b[step]) Print(f, tn->b[step], lvl + 1);
-    if (tn->id) cout << " : " << tn->id;
-}
-
 Forest::Forest(string fn)
         : T(0), nt(0), ni(0) {
     ifstream ff(fn);
     assert(ff);
     TreeBranch *p = 0;
     do {
-        if (debug > 3) cout << " read tree " << f.size() << " ";
         p = Read(ff, 1);
-        if (debug > 3) cout << p << endl;
 
         if (p) {
             f.push_back(p);
@@ -788,8 +752,11 @@ Forest::Forest(string fn)
             }
         }
     } while (p);
-//    if (debug)
-    cout << "Observed forest contains "  << f.size() << " tree(s) with " << nt << " tips and " << ni << " internal nodes, T=" << T << endl;
+    if (debug >= infoVal)
+    {
+        cout << "Observed forest contains "  << f.size() << " tree(s) with "
+        << nt << " tips and " << ni << " internal nodes, T=" << T << endl;
+    }
 }
 
 typedef struct {
@@ -800,7 +767,6 @@ template<class RR>
 void ODE2(RR *v, BDEI_pb<RR> &pb, R t0, R t1, R eps = 1e-6) {
     RR p[] = {1., 0, 0., 1.};
     pb.ODE(t0, t1 - t0, p, 2, eps);
-    //cout << "     "<<t0 << " " << t1 << " // "<< p[2] << " " << p[3] << endl;
     v[0] = p[0];
     v[2] = p[1];
     v[1] = p[2];
@@ -823,13 +789,11 @@ struct DataOde {
         if (l2 == 0) { // root
             RR p[] = {0., 1.};
             pb.ODE(T - l1, l1, p, eps);
-            // cout << " T "<< T << " " << l1 << " :  " << p[0] << " " << p[1] << endl;
             return log(pb.piE * p[0] + pb.piI * p[1]);
         } else { // internal node
             RR pp[] = {0., 1., 0., 1.};
             pb.ODE(T - l1, l1, pp + 0, eps);
             pb.ODE(T - l2, l2, pp + 2, eps);
-            // cout << " T "<< T << " " << l1 << " :  " << pp[0] << " " << pp[1] <<  " , "<< pp[2] << " " << pp[3] <<endl;
             return log(pp[0] * pp[3] + pp[1] * pp[2]);
         }
     }
@@ -859,14 +823,12 @@ void SetDataOde(TreeBranch *b, R T, vector<DataOde> &vdo, int lvl) {
 void SetDataOde(Forest &f, vector<DataOde> &vdo, R T) {
     for (int i = 0; i < f.size(); ++i)
         SetDataOde(f[i], T, vdo, 0);
-    //  if(debug) cout << " size of vdo: "<< vdo.size() << endl;
 }
 
 void SetDataOde(Forest &f, vector<DataOde> &vdo) {
     for (int i = 0; i < f.size(); ++i) {
         SetDataOde(f[i], f[i]->T, vdo, 0);
     }
-    //  if(debug) cout << " size of vdo: "<< vdo.size() << endl;
 }
 
 int oneeee = 0;
@@ -968,7 +930,7 @@ public:
         vector<R> pp(4);
         copy(p0, p0 + 4, pp.begin());
         nnewton = 0;
-        if (debug) cout << "J_vdo:  num = " << num << " :: " << pp << endl;
+        if (debug >= debugVal) cout << "J_vdo:  num = " << num << " :: " << pp << endl;
     }
 
     R operator()(const std::vector<double> &xx, std::vector<double> &grad) {
@@ -1035,7 +997,7 @@ public:
                 Cout = ccout;
             }
         }
-        if (debug) cout << " J " << x << "  = " << Cout << " " << count << " / " << nn << endl;
+        if (debug >= debugVal) cout << " J " << x << "  = " << Cout << " " << count << " / " << nn << endl;
         return Cout;
     }
 
@@ -1114,7 +1076,6 @@ public:
         rho0 = min(rmax - rdd, rho0);
         double lim = 0.1;
         for (int step = 0; step < 3; ++step) {
-            int dbg = ::debug > 1 && (step || ::debug > 2);
 
             assert(rho0);
             // double sig = copysign(1.0, rho0);
@@ -1138,11 +1099,6 @@ public:
                 if (jr < 0 && dd > 0) dd = -0.1;///
                 if (jr > 0 && dd < 0) dd = 0.1;///
                 ddd[i % ndj] = dd;
-                if (dbg)
-                    cout << step << " Newton 1d " << i << " " << rho << " j " << jr << " d " << djr
-                         << "  delta " << dd << " " << jr / djr << " " << krho << " :: " << rmin << " " << rmax
-                         << " // "
-                         << dir[0] << " " << dir[1] << " " << dir[2] << " " << dir[3] << endl;
                 if (abs(dd) < 1e-4 && abs(jr) > 100 && rho > 1e-2) {
                     rho /= 3.;
                     continue;
@@ -1158,7 +1114,7 @@ public:
                     rho = max(rmin, min(rmax, rho));
                 }
             }
-            if (debug > 2)
+            if (debug >= debugVal)
                 cout << "Pb::  Newton 1d  do not converge !!!!!!" << rho0 << " dir = "
                      << dir[0] << " " << dir[1] << " " << dir[2] << " " << dir[3] << " step = " << step << " retry "
                      << endl;
@@ -1167,7 +1123,7 @@ public:
                 lim /= 2.;
             }
         }
-        if (debug)
+        if (debug >= debugVal)
             cout << " Pb:: Newton Err: 1d do converge (return Nan) data:"
                  << dir[0] << " " << dir[1] << " " << dir[2] << " " << dir[3] << endl;
         return nan("");
@@ -1215,10 +1171,8 @@ vector<RR> Build(const vector<tuple<double, int, int >> &vs, BDEI_pb<RR> &pb, R 
                 tp.enqueue_work([pm, &pb, t0, t1, eps]() {
                     ODE2(pm, pb, t0, t1, eps);
                 });
-                // cout << " --+ " << i << " " << kk/4 << " , " << t0 << " " << t1 << " : " << k1 << endl;
                 kk += 4;
             }
-            // else cout <<" ---" << i << " , " << t0 << " " << t1 << " : " << k1 << endl;
         }
     }
     return m22;
@@ -1266,12 +1220,9 @@ RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, const vector<tuple<doubl
                 int iT = vdoi.iT;
                 for (int j = vdoi.iT1; j < iT; ++j) {
                     mult(pm22 + 4 * j, p4);
-                    //cout << "       "<<j << " *** "<< p4[0] << " " << p4[1] << endl;
                 }
                 for (int j = vdoi.iT2; j < iT; ++j)// IT2 => max int  if unset => no loop
                     mult(pm22 + 4 * j, p4 + 2);
-                //  save value
-                // cout << " J "<< vdoi.T  <<" " <<  vdoi.T-vdoi.l1 << " : " << p4[0] << " " << p4[1] <<  endl;
 
                 if (vdoi.internal())
                     p4[0] = log(p4[0] * p4[3] + p4[1] * p4[2]);  // internal node
@@ -1296,12 +1247,6 @@ RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, const vector<tuple<doubl
     duratinit += duration_cast<duration<double>>(afterpb - start).count();
     duratbuild += duration_cast<duration<double>>(afterbuild - afterpb).count();
     duratopt += duration_cast<duration<double>>(end - start).count();
-
-//    cout.precision(12);
-//    cout << " pIs: "<< pb.piE << " , " << pb.piI <<  endl;
-//    cout << " ps: "<< pb.mu << " , " << pb.la << " , " << pb.psi << " , " << pb.p <<  endl;
-//    cout << " Lk: "<< Cout <<  endl;
-//    cout << " ------------ "<< endl;
 
     return -Cout;
 }
@@ -1356,8 +1301,9 @@ void QnuCorner(int nbdata, Vvd d4, Vvd derr, Vvd corner) {
 }
 
 Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, int debug, R cpu_time, int nb_iter) {
-    jvdoC.nnewton = 0;
+    auto start = high_resolution_clock::now();
 
+    jvdoC.nnewton = 0;
     normal_distribution<double> loi(0, 1.);
     vector<double> d(4, 0.);
     double r[4];
@@ -1408,23 +1354,15 @@ Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, i
         } else knan++;
         kdir++;
     }
-    if (debug){
-        cout << " Err on all composante .." << nnum << " n dir " << kdir << " / n loose (nan) " << knan
-             << "  aver. iter. Newton " << double(jvdoC.nnewton) / kdir << endl;
-        for (int i = 0; i < 4; ++i) {
-            std::cout.width(7);
-            cout.precision(6);
-            cout << BDEIParams[i] << " = " << jvdoC.xopt[i];
-            cout.precision(4);
-            cout << " + [ " << derr[2 * i] << " , " << derr[2 * i + 1] << " ] " << endl;
-        }
-    }
+    auto end = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(end - start);
+
     return new Solution(-jvdoC.Jopt,
                         jvdoC.xopt[0], jvdoC.xopt[0] + derr[2 * 0], jvdoC.xopt[0] + derr[2 * 0 + 1],
                         jvdoC.xopt[1], jvdoC.xopt[1] + derr[2 * 1], jvdoC.xopt[1] + derr[2 * 1 + 1],
                         jvdoC.xopt[2], jvdoC.xopt[2] + derr[2 * 2], jvdoC.xopt[2] + derr[2 * 2 + 1],
                         jvdoC.xopt[3], jvdoC.xopt[3] + derr[2 * 3], jvdoC.xopt[3] + derr[2 * 3 + 1],
-                        cpu_time, nb_iter);
+                        cpu_time + duration.count() / 1000.f, nb_iter + jvdoC.count);
 }
 
 Solution
@@ -1455,18 +1393,18 @@ Solution
 
     // If T is given, assume it is the same for all trees, otherwise keep tree-specific Ts (from root till last tree's tip)
     if (T <= 0) {
-        cout << "Using tree-specific sampling periods (between tree start and tree's last sampled tip)." << endl;
+        if (debug >= infoVal)  cout << "Using tree-specific sampling periods (between tree start and tree's last sampled tip)." << endl;
         SetDataOde(forest, vdo);
     } else {
         T = max(T, forest.T);
-        cout << "Using global time " << T << " for the sampling period." << endl;
+        if (debug >= infoVal)  cout << "Using global time " << T << " for the sampling period." << endl;
         SetDataOde(forest, vdo, T);
     }
 
     for (int i = 0; i < vdo.size(); ++i) {
         DataOde &vdoi = vdo[i];
-        if (debug > 3)
-            cout << i << " " << vdoi.T << " " << vdoi.l1 << " " << vdoi.l2 << " -- " << vdoi.internal() << endl;
+//        if (debug >= debugVal)
+//            cout << i << " " << vdoi.T << " " << vdoi.l1 << " " << vdoi.l2 << " -- " << vdoi.internal() << endl;
 
         vs.push_back(make_tuple(vdoi.T, i * 4 + vdoi.internal(), 0));
         vs.push_back(make_tuple(vdoi.T - vdoi.l1, i * 4 + 2, 0));
@@ -1495,21 +1433,21 @@ Solution
         sst += (t1 - t0) * nc;
         sso += (t1 - t0);
         get<2>(vs[i]) = nk;
-        if (debug > 1)
-            cout << i << " " << t0 << " " << t1 << " : " << ivdo << " / " << cas << " -> " << nk << " / " << nc
-                 << endl;
+//        if (debug >= debugVal)
+//            cout << i << " " << t0 << " " << t1 << " : " << ivdo << " / " << cas << " -> " << nk << " / " << nc
+//                 << endl;
 
     }
     assert(nc == 0);
-    if (debug > 1) cout << " chevauchement : " << sst / sso << " nk " << nk << " " << "/  " << vs.size() << endl;
+//    if (debug >= debugVal) cout << " chevauchement : " << sst / sso << " nk " << nk << " " << "/  " << vs.size() << endl;
 
     R cpu_time = 0.00;
     int nb_iter = 0;
 
-    if (debug)
-        cout << " forest: " << treename
-             << ", mu  = " << mu << ", lambda = " << lambda << ", psi = " << psi << ", p = " << p
-             << ", T = " << T << ", u = " << u << endl;
+    if (debug >= debugVal)
+        cout << "forest file: " << treename << endl;
+//             << ", mu  = " << mu << ", lambda = " << lambda << ", psi = " << psi << ", p = " << p
+//             << ", T = " << T << ", u = " << u << endl;
     R predefdata[] = {mu, lambda, psi, p};
     vector<double> xsol(4); // to store the solution ...
     int nbdata = 0;
@@ -1518,7 +1456,7 @@ Solution
         if (predefdata[k] < 0) {
             num[nbdata++] = k;
         } else {
-            cout << BDEIParams[k] << " value is fixed to " << predefdata[k] << endl;
+            if (debug >= infoVal) cout << BDEIParams[k] << " value is fixed to " << predefdata[k] << endl;
         }
     assert(nbdata > 0);
     array<R, 4> sol;
@@ -1526,7 +1464,7 @@ Solution
 
     auto start = high_resolution_clock::now();
 
-    J_vdo jvdo(vdo, vs, predefdata, pie, u, eps, debug > 1);
+    J_vdo jvdo(vdo, vs, predefdata, pie, u, eps, debug >= debugVal);
     //nlopt::opt opt(nlopt::LN_NEWUOA_BOUND, 4); // global min ???
     int no = nbdata;// with_p ? 3 :4 ;
     nlopt::opt opt(thealgo[1], no);
@@ -1555,18 +1493,24 @@ Solution
         for (int i = 0; i < no; ++i) {
             xj[i] = x0[startI * 4 + num[i]];
         }
-        cout << "Optimisation attempt " << startI + 1 << ":" << endl;
-        cout << "  starting values for optimised parameters: " << xj << endl;
-        cout << "  upper bounds : " << ub << endl;
+        if (debug >= infoVal)
+        {
+            cout << "Optimisation attempt " << startI + 1 << ":" << endl;
+            cout << "  starting values for optimised parameters: " << xj << endl;
+            cout << "  upper bounds : " << ub << endl;
+        }
         bool ok = false;
         try {
             nlopt::result result = opt.optimize(xj, minf);
             ok = true;
-            cout << "  optimised parameter values: " << xj << endl;
-            cout << "  optimised log-likelihood: " << -minf << endl;
+            if (debug >= infoVal)
+            {
+                cout << "  optimised parameter values: " << xj << endl;
+                cout << "  optimised log-likelihood: " << -minf << endl;
+            }
         }
         catch (exception &e) {
-            cout << "  nlopt failed: " << e.what() << endl;
+            if (debug >= errorVal)  cout << "  nlopt failed: " << e.what() << endl;
         }
         nb_iter += jvdo.count;
         if ((minf < bestRes) && ok) {
@@ -1575,8 +1519,8 @@ Solution
             for (int i = 0; i < no; ++i)
                 x[num[i]] = xj[i];
             xsol = x;
-            if (debug) {
-                cout << " CPUtime  = " << cpu_time << " s" << endl;
+            if (debug >= debugVal)
+            {
                 cout << "found minimum at f( mu= " << x[0] << " , la= " << x[1]
                           << " , psi= " << x[2] << " , p= " << x[3] << " ) = "
                           << setprecision(10) << minf << " nb iter " << nb_iter << endl;
@@ -1584,22 +1528,11 @@ Solution
             vector<R> xx(no), dx(no);
             copy(xj.begin(), xj.begin() + no, xx.begin());
             jvdo.DJ(xx, dx);
-            if (debug) {
+            if (debug >= debugVal)
+            {
                 cout << "  Grad    = " << dx << " " << endl;
-                cout << "    at x  = " << x << endl;
+//                cout << "    at x  = " << x << endl;
             }
-//            int nbound = 0;
-//            for (int i = 0; i < no; ++i) {
-//                int j = num[i];
-//                if ((x[j] < 1e-4) || (x[j] > 10) || (x[j] > dub[j] * 0.99999)) nbound++;
-//            }
-//            if (x[3] > 0.9999) nbound++;
-//
-//            if (debug) {
-//                if (nbound)
-//                    cout << " WARNING too close to bounds ( May be Wrong result !!!!!  " << nbound << ") " << endl;
-//                cout << setprecision(16) << minf << " ;" << x << " ; " << T << " ; " << u << endl;
-//            }
             copy(x.begin(), x.end(), x0);
         } else if (ok) {
             break;
@@ -1609,16 +1542,17 @@ Solution
     auto duration = duration_cast<milliseconds>(end - start);
     cpu_time = duration.count() / 1000.f;
 
+    if (debug >= debugVal)
+    {
+        cout << " CPUtime  = " << cpu_time << " s" << endl;
+    }
+
     for (int j = 0; j < 4; ++j)
         sol[j] = x[j];
     Jsol = minf;
 
     if (nbdirerr > 0) {
-        if (debug)
-            cout << "compute  error bar " << nbdata << " khi2= " << khi_2_95[1] << " nberrdir=" << nbdirerr
-                 << " ????warning FH.  khi2 in one direction " << endl;
-        auto starterr = high_resolution_clock::now();
-        // first
+        if (debug >= infoVal)  cout << "CI estimation" << endl;
         double Jerr = khi_2_95[1];// err in on direction => 1 data  not nbdata
         double Js = Jsol + Jerr;
         vector<double> x(4), dir(4);
@@ -1626,17 +1560,6 @@ Solution
         J_vdo jvdoC(vdo, vs, predefdata, pie, u, eps, debug > 1, Js, x, Jsol);
         vector<double> errb(8, 0.);
         s = ErrRandDir(jvdoC, nbdata, num, nbdirerr, &errb[0], debug, cpu_time, nb_iter);
-        auto enderr = high_resolution_clock::now();
-        duraterr += duration_cast<milliseconds>(enderr - starterr).count();
-    }
-
-    if (debug) {
-        cout << " time ODE1 " << duratinit << "s, ( build " << duratbuild
-             << "s ) ODE1+2: " << duratopt << " s " << 100 * duratinit / duratopt << " %" << "  err bound: " << duraterr
-             << endl;
-        cout << "# cost ; mu ; la ; psi ; p ; T ; u \n";
-        cout << Jsol << "  ;  " << sol[0] << " ; " << sol[1] << " ; " << sol[2] << " ;" << sol[3]
-             << " ; " << T << " ; " << u << endl;
     }
 
     if (nbdirerr <= 0) {
@@ -1646,19 +1569,20 @@ Solution
 }
 
 
-R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R T, R u) {
+R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R T, R u, int _debug) {
     Solution *s = nullptr;
     double eps = 1e-6;
     R predefdata[] = {mu, lambda, psi, p};
+    debug = _debug;
 
     Forest forest(treename);
     vector<DataOde> vdo;
     if (T <= 0) {
-        cout << "Using tree-specific sampling periods (between tree start and tree's last sampled tip)." << endl;
+        if (debug >= infoVal)  cout << "Using tree-specific sampling periods (between tree start and tree's last sampled tip)." << endl;
         SetDataOde(forest, vdo);
     } else {
         T = max(T, forest.T);
-        cout << "Using global time " << T << " for the sampling period." << endl;
+        if (debug >= infoVal)  cout << "Using global time " << T << " for the sampling period." << endl;
         SetDataOde(forest, vdo, T);
     }
 
@@ -1667,31 +1591,28 @@ R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie,
 
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr, int nt, int nstarts) {
-    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, 0, nstarts);
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u,
+                int nbdirerr, int nt, int nstarts) {
+    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, infoVal, nstarts);
 }
 
 Solution
 *inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr, int nt) {
-    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, 0, 1);
+    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, infoVal, 1);
 }
 
 int main(int argc, const char *argv[]) {
-    // tr -d '[0-9();.,]\n' <forest_small.nwk |wc
-    //  chdir("/Users/hecht/Desktop/gdt-Covid-19/BDEI/BDEI/");
     string treename = "";
-    debug = 1;
-    int nbdirerr = 0; //
-    // int n = 10000;
-    R T = 0, u = 0; // ?????
-    R p = -1; // undef
+    int nbdirerr = 0;
+    R T = 0, u = 0;
+    R p = -1;
     R mu = -1;
     R lambda = -1;
     R psi = -1;
     int kk = 0;
 
-    R x0[] = {0.5, .1, 0.6, 0.8};// defaut starting points
-    R dub[] = {HUGE_VAL, HUGE_VAL, HUGE_VAL, 0.999999};// defaut ub bound
+    R x0[] = {0.5, .1, 0.6, 0.8}; // default starting points
+    R dub[] = {HUGE_VAL, HUGE_VAL, HUGE_VAL, 0.999999};// default upper bound
     if (argc <= 1) {
         cout << "\n Usage  : " << argv[0] << " *[-* ] ['nwk-filename']  \n\n";
         cout << "\n where *[-* ] can be: \n";
@@ -1700,7 +1621,6 @@ int main(int argc, const char *argv[]) {
     }
 
     while (argc > kk + 1 && argv[kk + 1][0] == '-') {
-        //  cout << kk << " " << argv[kk+1] << " " << argc << endl;
         if (argc > kk + 2 && strcmp(argv[kk + 1], "-f") == 0) {
             treename = argv[kk + 2];;
             kk += 2;
@@ -1735,6 +1655,10 @@ int main(int argc, const char *argv[]) {
         }
         else if (argc > kk + 2 && strcmp(argv[kk + 1], "-nt") == 0) {
             size_pool = atoi(argv[kk + 2]);
+            kk += 2;
+        }
+        else if (argc > kk + 2 && strcmp(argv[kk + 1], "-d") == 0) {
+            debug = atof(argv[kk + 2]);
             kk += 2;
         }
         else if (argc > kk + 1 && strcmp(argv[kk + 1], "-nbdirerr") == 0) {
