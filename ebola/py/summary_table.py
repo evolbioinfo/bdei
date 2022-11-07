@@ -67,7 +67,7 @@ if __name__ == "__main__":
                *parse_CI(estimates['p_CI'])]
         df.loc[est_label,
                ['repetition', 'sampled_tips', 'observed_trees', 'hidden_trees']] \
-            = [rep, tips, o_trees, N - o_trees]
+            = [rep, tips, o_trees, max(N - o_trees, 0)]
 
     df['R0_min'] = df['lambda_min'] / df['psi']
     df['R0_max'] = df['lambda_max'] / df['psi']

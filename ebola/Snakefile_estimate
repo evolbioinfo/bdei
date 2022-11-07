@@ -10,7 +10,7 @@ folder = os.path.abspath(config["folder"])
 ebola_folder = os.path.join(folder, 'data', 'SLE')
 IS=range(10)
 ITS = [2.58, 5]
-Ns = [533, 800]
+Ns = [0, 533, 800]
 
 rule all:
     input:
@@ -30,11 +30,12 @@ rule estimate:
         name = 'estimate_{i}',
         qos = 'fast'
     threads: 3
-    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    singularity: "docker://evolbioinfo/bdei:v0.2"
     shell:
         """
         u=`grep -o ';' {input.nwk}  | wc -l`
         u=$(({wildcards.N}-u))
+        u=`awk -v u=$u 'BEGIN {{ print (u < 0) ? 0: u }}'`
         psi=`bc -l <<< '1/{wildcards.it}'`
 
         bdei_infer --psi $psi -u $u --threads {threads} -c 100 --nwk {input.nwk} --log {output.est} --time_log {output.time} --T 1
