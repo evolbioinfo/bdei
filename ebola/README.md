@@ -8,6 +8,8 @@ downloaded from [github.com/ebov/space-time](https://github.com/ebov/space-time/
 and saved here as:
  * [data/aln.ids.fa](data/aln.ids.fa) -- multiple sequence alignment;
  * [data/metadata.csv](data/metadata.csv) -- metadata.
+ 
+The original data are available under [Creative Commons Attribution Share Alike 4.0 International licence](LICENCE.txt), the same licance applies to the results that we obtained from it (see below).
 
 ### SLE forests
 
