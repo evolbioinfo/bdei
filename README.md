@@ -16,11 +16,18 @@ previous implementations [[Stadler and Bonhoeffer 2013](https://royalsocietypubl
 Our fast and accurate estimator is applicable to very large datasets (10, 000 samples) allowing phylodynamics to
 catch up with pathogen sequencing efforts.
 
-#### Article
 
-A Zhukova, F Hecht, Y Maday, and O Gascuel. *Fast and accurate maximum likelihood estimation
-of Birth-Death Exposed-Infectious (BDEI) epidemiological
-model from phylogenetic trees* _(in prep.)_
+
+[![DOI:10.1101/2022.08.02.22278328](https://zenodo.org/badge/DOI/10.1101/2022.08.02.22278328.svg)](https://doi.org/10.1101/2022.08.02.22278328)
+[![GitHub release](https://img.shields.io/github/v/release/evolbioinfo/bdei.svg)](https://github.com/evolbioinfo/bdei/releases)
+[![PyPI version](https://badge.fury.io/py/pybdei.svg)](https://pypi.org/project/pybdei/)
+[![PyPI downloads](https://shields.io/pypi/dm/pybdei)](https://pypi.org/project/pybdei/)
+[![Docker pulls](https://img.shields.io/docker/pulls/evolbioinfo/pybdei)](https://hub.docker.com/r/evolbioinfo/pybdei/tags)
+
+
+#### Preprint
+
+A Zhukova, F Hecht, Y Maday, and O Gascuel. *Fast and Accurate Maximum-Likelihood Estimation of Multi-Type Birth-Death Epidemiological Models from Phylogenetic Trees* medRxiv 2022 [doi:10.1101/2022.08.02.22278328](https://doi.org/10.1101/2022.08.02.22278328)
 
 # Input data
 As an input, one needs to provide a **rooted** phylogenetical tree in [newick](https://en.wikipedia.org/wiki/Newick_format) format,
