@@ -90,7 +90,7 @@ To see advanced options, run
 singularity run docker://evolbioinfo/bdei -h
 ```
 
-## Run in python3 or command-line (for linux systems, recommended Ubuntu 21 or older versions)
+## Run in python3 or command-line (for linux systems, recommended Ubuntu 21 or newer versions)
 
 ### 1. Install the C++ dependencies
 You would need to install g++10 and [NLOpt](https://nlopt.readthedocs.io/en/latest/) C++ libraries:
