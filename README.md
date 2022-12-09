@@ -22,7 +22,7 @@ catch up with pathogen sequencing efforts.
 [![GitHub release](https://img.shields.io/github/v/release/evolbioinfo/bdei.svg)](https://github.com/evolbioinfo/bdei/releases)
 [![PyPI version](https://badge.fury.io/py/pybdei.svg)](https://pypi.org/project/pybdei/)
 [![PyPI downloads](https://shields.io/pypi/dm/pybdei)](https://pypi.org/project/pybdei/)
-[![Docker pulls](https://img.shields.io/docker/pulls/evolbioinfo/pybdei)](https://hub.docker.com/r/evolbioinfo/pybdei/tags)
+[![Docker pulls](https://img.shields.io/docker/pulls/evolbioinfo/bdei)](https://hub.docker.com/r/evolbioinfo/bdei/tags)
 
 
 #### Preprint
@@ -55,7 +55,7 @@ Once [docker](https://www.docker.com/community-edition) is installed, run the fo
 (here we assume that the sampling probability value is known and fixed to 0.3):
 
 ```bash
-docker run -v <path_to_the_folder_containing_the_tree>:/data:rw -t evolbioinfo/pybdei --nwk /data/<tree_file.nwk> --p 0.3 --CI_repetitions 100 --log <file_to_store_the_estimated_parameters.tab>
+docker run -v <path_to_the_folder_containing_the_tree>:/data:rw -t evolbioinfo/bdei --nwk /data/<tree_file.nwk> --p 0.3 --CI_repetitions 100 --log <file_to_store_the_estimated_parameters.tab>
 ```
 
 This will produce a file <file_to_store_the_estimated_parameters.tab> in the <path_to_the_folder_containing_the_tree> folder,
@@ -65,7 +65,7 @@ This will produce a file <file_to_store_the_estimated_parameters.tab> in the <pa
 
 To see advanced options, run
 ```bash
-docker run -t evolbioinfo/pybdei -h
+docker run -t evolbioinfo/bdei -h
 ```
 
 ## Run with singularity
