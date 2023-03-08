@@ -21,6 +21,8 @@ if __name__ == "__main__":
     df.index = df['type'] + '_' + df.index.map(str)
     lk_df, index = [], []
     for i in range(100):
+        if 'real_{}'.format(i) not in df.index:
+            continue
         p = df.loc['real_{}'.format(i), 'p']
         type2lk = {}
         for type in ALL_TYPES:

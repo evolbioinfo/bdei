@@ -1,10 +1,10 @@
 real likelihood is the highest in 0% of cases.
-PyBDEI likelihood is the highest in 90% of cases.
 BEAST2 likelihood is the highest in 9% of cases.
+PyBDEI likelihood is the highest in 88% of cases.
 PhyloDeep likelihood is the highest in 1% of cases.
-PyBDEI likelihood is higher than real in 100% of cases
 BEAST2 likelihood is higher than real in 90% of cases
-PhyloDeep likelihood is higher than real in 82% of cases
-PyBDEI likelihood is higher than BEAST2 in 91% of cases
-PyBDEI likelihood is higher than PhyloDeep in 99% of cases
+PyBDEI likelihood is higher than real in 98% of cases
+PhyloDeep likelihood is higher than real in 81% of cases
+BEAST2 likelihood is higher than PyBDEI in 9% of cases
 BEAST2 likelihood is higher than PhyloDeep in 85% of cases
+PyBDEI likelihood is higher than PhyloDeep in 97% of cases

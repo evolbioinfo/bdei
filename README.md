@@ -46,7 +46,8 @@ _(can be fixed via the --la argument)_,
 There are 4 alternative ways to run __PyBDEI__ on your computer: 
 with [docker](https://www.docker.com/community-edition), 
 [singularity](https://www.sylabs.io/singularity),
-in python3 (only on linux systems), or via command line (only on linux systems, requires installation with python3).
+in Python3 (only on linux systems), or via command line (only on linux systems, requires installation with Python3).
+
 
 ## Run with docker
 
