@@ -947,57 +947,43 @@ public:
         assert(x.size() == 4);
         for (int i = 0; i < 4; ++i)
             x[i] = max(1e-6, x[i]);
+        // sampling probability
         x[3] = min(x[3], 0.99999999);
         assert(x.size() == 4);
-        if (grad.empty()) {
-            if (vs) { //  optimize version
-                Cout = JCout(&x[0], pie, u, vdo, *vs, eps);
-           } else {
-                Cout = JCout(&x[0], pie, u, vdo, eps);
-           }
-        } else {
-            int n = (int) grad.size();
-            if (n == 1) { // grad in direction dir ..
-                assert(dir.size() == 4); // dir is def ..
-                typedef Diff<R> DR;
-                vector<DR> dx(4);
-                for (int i = 0; i < 4; ++i)
-                    dx[i] = DR(x[i], dir[i]);
-                DR dCout = 0;
-                if (vs) {
-                    dCout = JCout(&dx[0], pie, u, vdo, *vs, eps);
-                } else {
-                    dCout = JCout(&dx[0], pie, u, vdo, eps);
-                }
-                grad[0] = dCout.dval;
-                Cout = dCout.val;
 
-            } else {
-                assert(n == nn || n == 4);
-                typedef Diff<R> DR;
-                vector<DR> dx(4);
-                R ccout = 0;
-                for (int j = 0; j < n; ++j) {
-                    if (n == 4) // all derivative
-                        for (int i = 0; i < 4; ++i)
-                            dx[i] = DR(x[i], R(i == j));
-                    else
-                        for (int i = 0; i < 4; ++i)
-                            dx[i] = DR(x[i], R(i == num[j]));
-                    DR Cout;
-                    if (vs) {
-                        Cout = JCout(&dx[0], pie, u, vdo, *vs, eps);
-                    } else {
-                        Cout = JCout(&dx[0], pie, u, vdo, eps);
-                    }
-
-                    grad[j] = Cout.dval;
-                    if (ccout == 0) ccout = Cout.val;
-                }
-                Cout = ccout;
+        int n = (int) grad.size();
+        // CIs
+        if (n == 1) { // grad in direction dir ..
+            assert(dir.size() == 4); // dir is def ..
+            typedef Diff<R> DR;
+            vector<DR> dx(4);
+            for (int i = 0; i < 4; ++i)
+                dx[i] = DR(x[i], dir[i]);
+            DR dCout = JCout(&dx[0], pie, u, vdo, *vs, eps);
+            grad[0] = dCout.dval;
+            Cout = dCout.val;
+        } // optimum search
+        else {
+            assert(n == nn || n == 4);
+            typedef Diff<R> DR;
+            vector<DR> dx(4);
+            R ccout = 0;
+            for (int j = 0; j < n; ++j) {
+                if (n == 4) // all derivative
+                    for (int i = 0; i < 4; ++i)
+                        dx[i] = DR(x[i], R(i == j));
+                else
+                    for (int i = 0; i < 4; ++i)
+                        dx[i] = DR(x[i], R(i == num[j]));
+                DR Cout = JCout(&dx[0], pie, u, vdo, *vs, eps);
+                grad[j] = Cout.dval;
+                if (ccout == 0) ccout = Cout.val;
             }
+            Cout = ccout;
         }
-        if (debug >= debugVal) cout << " J " << x << "  = " << Cout << " " << count << " / " << nn << endl;
+        if (debug >= debugVal) {
+            cout << " J " << x << "  = " << Cout << " " << count << " / " << nn << endl;
+        }
         return Cout;
     }
 
@@ -1131,7 +1117,6 @@ public:
 
     double C1(const std::vector<double> &xx, std::vector<double> &grad) {
         double C = operator()(xx, grad) - Jm;
-
         return C;
     }
 
@@ -1293,12 +1278,6 @@ void showparam(R *x0, string nwk, const char *algo_name[]) {
     cout << endl;
 }
 
-typedef vector<vector<double>> Vvd;
-
-void QnuCorner(int nbdata, Vvd d4, Vvd derr, Vvd corner) {
-    assert(0);
-
-}
 
 Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, int debug, R cpu_time, int nb_iter) {
     auto start = high_resolution_clock::now();
@@ -1365,47 +1344,23 @@ Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, i
                         cpu_time + duration.count() / 1000.f, nb_iter + jvdoC.count);
 }
 
-Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u,
-                int nbdirerr, int nt, int debug_, int nStarts) {
-    debug=debug_;
-
-    Solution *s = nullptr;
-    int num[4] = {0, 1, 2, 3}; // mu, la, psi , p
-
-    double eps = 1e-6;
-    int algo = 1, old = 0;
-    if (nt < 1) {
-        size_pool = thread::hardware_concurrency();
-    } else {
-        size_pool = nt;
-    }
-    nlopt::algorithm thealgo[] = {nlopt::LN_NEWUOA_BOUND, nlopt::LD_MMA, nlopt::LD_LBFGS, nlopt::GN_DIRECT_L};
-    random_device reng;
-    rand_gen.seed(reng());
-    algo = algo % 4;
-    algo = min(3, max(0, algo));
-
-
-    Forest forest(treename);
-    vector<DataOde> vdo;
-    vector<tuple<double, int, int >> vs;
-
-    // If T is given, assume it is the same for all trees, otherwise keep tree-specific Ts (from root till last tree's tip)
+vector<DataOde> &getForestDataODE(Forest &forest, R T, vector<DataOde> &vdo, int _debug) {
     if (T <= 0) {
-        if (debug >= infoVal)  cout << "Using tree-specific sampling periods (between tree start and tree's last sampled tip)." << endl;
+        if (_debug >= infoVal)  cout << "Using tree-specific sampling periods (between tree start and tree's last sampled tip)." << endl;
         SetDataOde(forest, vdo);
     } else {
+        if (_debug >= infoVal)  cout << "Using global time " << T << " for the sampling period." << endl;
         T = max(T, forest.T);
-        if (debug >= infoVal)  cout << "Using global time " << T << " for the sampling period." << endl;
         SetDataOde(forest, vdo, T);
     }
+    return vdo;
+}
+
+
+vector<tuple<double, int, int>> &getVS(vector<DataOde> &vdo, vector<tuple<double, int, int>> &vs) {
 
     for (int i = 0; i < vdo.size(); ++i) {
         DataOde &vdoi = vdo[i];
-//        if (debug >= debugVal)
-//            cout << i << " " << vdoi.T << " " << vdoi.l1 << " " << vdoi.l2 << " -- " << vdoi.internal() << endl;
-
         vs.push_back(make_tuple(vdoi.T, i * 4 + vdoi.internal(), 0));
         vs.push_back(make_tuple(vdoi.T - vdoi.l1, i * 4 + 2, 0));
         if (vdoi.internal())
@@ -1433,13 +1388,76 @@ Solution
         sst += (t1 - t0) * nc;
         sso += (t1 - t0);
         get<2>(vs[i]) = nk;
-//        if (debug >= debugVal)
-//            cout << i << " " << t0 << " " << t1 << " : " << ivdo << " / " << cas << " -> " << nk << " / " << nc
-//                 << endl;
-
     }
     assert(nc == 0);
-//    if (debug >= debugVal) cout << " chevauchement : " << sst / sso << " nk " << nk << " " << "/  " << vs.size() << endl;
+    return vs;
+}
+
+
+R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R T, R u, int _debug) {
+    vector<DataOde> vdo;
+    vdo = getForestDataODE(forest, T, vdo, _debug);
+
+    vector<tuple<double, int, int >> vs;
+    vs = getVS(vdo, vs);
+
+    R predefdata[] = {mu, lambda, psi, p};
+    double eps = 1e-6;
+    J_vdo jvdo(vdo, vs, predefdata, pie, u, eps, _debug >= debugVal);
+
+    nlopt::opt opt(nlopt::LD_MMA, 1);
+    vector<double> lb(1, 1e-5), ub(1, HUGE_VAL), xj(1);
+    ub[0] = mu + 1e-5;
+    lb[0] = mu - 1e-5;
+    xj[0] = mu;
+
+    double minf;
+    opt.set_lower_bounds(lb);
+    opt.set_upper_bounds(ub);
+    opt.set_initial_step(0.1);
+    opt.set_min_objective(J_vdo::wrap, &jvdo);
+    opt.set_xtol_rel(1e-5);
+    nlopt::result result = opt.optimize(xj, minf);
+    return -minf;
+}
+
+
+
+R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R T, R u, int _debug) {
+    debug = _debug;
+    Forest forest(treename);
+    return calcLikelihood(forest, mu, lambda, psi, p, pie, T, u, _debug);
+}
+
+
+Solution
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u,
+                int nbdirerr, int nt, int debug_, int nStarts) {
+    debug = debug_;
+
+    Solution *s = nullptr;
+    int num[4] = {0, 1, 2, 3}; // mu, la, psi , p
+
+    double eps = 1e-6;
+    int algo = 1, old = 0;
+    if (nt < 1) {
+        size_pool = thread::hardware_concurrency();
+    } else {
+        size_pool = nt;
+    }
+    nlopt::algorithm thealgo[] = {nlopt::LN_NEWUOA_BOUND, nlopt::LD_MMA, nlopt::LD_LBFGS, nlopt::GN_DIRECT_L};
+    random_device reng;
+    rand_gen.seed(reng());
+    algo = algo % 4;
+    algo = min(3, max(0, algo));
+
+
+    Forest forest(treename);
+    vector<DataOde> vdo;
+    vdo = getForestDataODE(forest, T, vdo, debug_);
+
+    vector<tuple<double, int, int >> vs;
+    vs = getVS(vdo, vs);
 
     R cpu_time = 0.00;
     int nb_iter = 0;
@@ -1456,7 +1474,7 @@ Solution
         if (predefdata[k] < 0) {
             num[nbdata++] = k;
         } else {
-            if (debug >= infoVal) cout << BDEIParams[k] << " value is fixed to " << predefdata[k] << endl;
+            if (debug >= infoVal) cout << " the value of " << BDEIParams[k] << " is fixed to " << predefdata[k] << endl;
         }
     assert(nbdata > 0);
     array<R, 4> sol;
@@ -1465,16 +1483,9 @@ Solution
     auto start = high_resolution_clock::now();
 
     J_vdo jvdo(vdo, vs, predefdata, pie, u, eps, debug >= debugVal);
-    //nlopt::opt opt(nlopt::LN_NEWUOA_BOUND, 4); // global min ???
-    int no = nbdata;// with_p ? 3 :4 ;
-    nlopt::opt opt(thealgo[1], no);
-
-    // nlopt::opt opt(nlopt::LN_COBYLA, 4);
-    //  nlopt::opt opt(nlopt::LD_MMA, 4);
-    // R la_=1./7.,RR psi_=1./16.,RR mu_=.5,RR p_=0.5
-    //  int no=nbdata;
-    vector<double> lb(no, 1e-5), ub(no, HUGE_VAL);
-    for (int i = 0; i < no; ++i)
+    nlopt::opt opt(thealgo[1], nbdata);
+    vector<double> lb(nbdata, 1e-5), ub(nbdata, HUGE_VAL);
+    for (int i = 0; i < nbdata; ++i)
         ub[i] = min(dub[num[i]], ub[i]);
 
     opt.set_lower_bounds(lb);
@@ -1489,8 +1500,8 @@ Solution
         opt.set_initial_step(0.1);
         opt.set_min_objective(J_vdo::wrap, &jvdo);
         opt.set_xtol_rel(1e-5);
-        vector<double> xj(no);
-        for (int i = 0; i < no; ++i) {
+        vector<double> xj(nbdata);
+        for (int i = 0; i < nbdata; ++i) {
             xj[i] = x0[startI * 4 + num[i]];
         }
         if (debug >= infoVal)
@@ -1498,6 +1509,9 @@ Solution
             cout << "Optimisation attempt " << startI + 1 << ":" << endl;
             cout << "  starting values for optimised parameters: " << xj << endl;
             cout << "  upper bounds : " << ub << endl;
+
+            R sol2 = calcLikelihood(forest, xj[0], xj[1], xj[2], x0[3], pie, T, u, 0);
+            cout << "  initial log-likelihood: " << setprecision(10) << sol2 << endl;
         }
         bool ok = false;
         try {
@@ -1506,33 +1520,20 @@ Solution
             if (debug >= infoVal)
             {
                 cout << "  optimised parameter values: " << xj << endl;
-                cout << "  optimised log-likelihood: " << -minf << endl;
+                cout << "  optimised log-likelihood: " << setprecision(10) << -minf << endl;
             }
         }
         catch (exception &e) {
             if (debug >= errorVal)  cout << "  nlopt failed: " << e.what() << endl;
         }
         nb_iter += jvdo.count;
+
         if ((minf < bestRes) && ok) {
             bestRes = minf;
             copy(predefdata, predefdata + 4, x.begin());
-            for (int i = 0; i < no; ++i)
+            for (int i = 0; i < nbdata; ++i)
                 x[num[i]] = xj[i];
             xsol = x;
-            if (debug >= debugVal)
-            {
-                cout << "found minimum at f( mu= " << x[0] << " , la= " << x[1]
-                          << " , psi= " << x[2] << " , p= " << x[3] << " ) = "
-                          << setprecision(10) << minf << " nb iter " << nb_iter << endl;
-            }
-            vector<R> xx(no), dx(no);
-            copy(xj.begin(), xj.begin() + no, xx.begin());
-            jvdo.DJ(xx, dx);
-            if (debug >= debugVal)
-            {
-                cout << "  Grad    = " << dx << " " << endl;
-//                cout << "    at x  = " << x << endl;
-            }
             copy(x.begin(), x.end(), x0);
         } else if (ok) {
             break;
@@ -1560,33 +1561,10 @@ Solution
         J_vdo jvdoC(vdo, vs, predefdata, pie, u, eps, debug > 1, Js, x, Jsol);
         vector<double> errb(8, 0.);
         s = ErrRandDir(jvdoC, nbdata, num, nbdirerr, &errb[0], debug, cpu_time, nb_iter);
-    }
-
-    if (nbdirerr <= 0) {
+    } else {
         s = new Solution(-Jsol, sol[0], sol[1], sol[2], sol[3], cpu_time, nb_iter);
     }
     return s;
-}
-
-
-R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R T, R u, int _debug) {
-    Solution *s = nullptr;
-    double eps = 1e-6;
-    R predefdata[] = {mu, lambda, psi, p};
-    debug = _debug;
-
-    Forest forest(treename);
-    vector<DataOde> vdo;
-    if (T <= 0) {
-        if (debug >= infoVal)  cout << "Using tree-specific sampling periods (between tree start and tree's last sampled tip)." << endl;
-        SetDataOde(forest, vdo);
-    } else {
-        T = max(T, forest.T);
-        if (debug >= infoVal)  cout << "Using global time " << T << " for the sampling period." << endl;
-        SetDataOde(forest, vdo, T);
-    }
-
-    return -JCout(&predefdata[0], pie, u, vdo, eps);
 }
 
 

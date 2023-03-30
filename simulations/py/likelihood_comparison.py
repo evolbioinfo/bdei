@@ -1,5 +1,8 @@
 import pandas as pd
 from pybdei import get_loglikelihood
+import numpy as np
+
+PYBDEI = 'PyBDEI'
 
 REAL_TYPE = 'real'
 
@@ -15,8 +18,8 @@ if __name__ == "__main__":
     params = parser.parse_args()
 
     df = pd.read_csv(params.estimates, sep='\t', index_col=0)
-    NON_REAL_TYPES = [_ for _ in df['type'].unique() if _ != REAL_TYPE]
-    ALL_TYPES = [REAL_TYPE] + NON_REAL_TYPES
+    NON_REAL_TYPES = [PYBDEI] + sorted([_ for _ in df['type'].unique() if _ != REAL_TYPE and _ != PYBDEI])
+    ALL_TYPES = NON_REAL_TYPES + [REAL_TYPE]
 
     df.index = df['type'] + '_' + df.index.map(str)
     lk_df, index = [], []
@@ -31,34 +34,32 @@ if __name__ == "__main__":
             index.append(i)
         best_lk = max(type2lk.values())
         for _ in ALL_TYPES:
-            lk_df.append([_, type2lk[_], best_lk - type2lk[_]])
-    lk_df = pd.DataFrame(data=lk_df, columns=['type', 'loglk', 'diff with max'], index=index)
+            lk_df.append([_, type2lk[_], best_lk - type2lk[_], type2lk[_] - type2lk['real']])
+    lk_df = pd.DataFrame(data=lk_df, columns=['type', 'loglk', 'diff with max', 'diff with real'], index=index)
     lk_df.to_csv(params.likelihoods, sep='\t')
 
-    log_lk_r = lk_df[lk_df['type'] == REAL_TYPE]
-
     with open(params.log, 'w+') as f:
-        for type in ALL_TYPES:
-            log_lk_t = lk_df[lk_df['type'] == type]
-            log = '{} likelihood is the highest in {}% of cases.'.format(type, sum(log_lk_t['diff with max'] == 0))
-            print(log)
-            f.write(log + '\n')
+        # for type in ALL_TYPES:
+        #     log_lk_t = lk_df[lk_df['type'] == type]
+        #     log = '{} likelihood is the highest in {:.0f}% of cases.'\
+        #         .format(type, 100 * sum(np.round(log_lk_t['diff with max'], 2) == 0) / len(log_lk_t))
+        #     print(log)
+        #     f.write(log + '\n')
 
-        for type in NON_REAL_TYPES:
-            log_lk_t = lk_df[lk_df['type'] == type]
-            log = '{} likelihood is higher than real in {}% of cases'\
-                .format(type, sum(log_lk_t['loglk'] > log_lk_r['loglk']))
-            print(log)
-            f.write(log + '\n')
-
-        for i in range(len(NON_REAL_TYPES) - 1):
-            type1 = NON_REAL_TYPES[i]
+        for i in range(len(ALL_TYPES)):
+            type1 = ALL_TYPES[i]
             log_lk_t1 = lk_df[lk_df['type'] == type1]
-            for j in range(i + 1, len(NON_REAL_TYPES)):
-                type2 = NON_REAL_TYPES[j]
+            for j in range(i + 1, len(ALL_TYPES)):
+                type2 = ALL_TYPES[j]
                 log_lk_t2 = lk_df[lk_df['type'] == type2]
-                log = '{} likelihood is higher than {} in {}% of cases'\
-                    .format(type1, type2, sum(log_lk_t1['loglk'] > log_lk_t2['loglk']))
-                print(log)
+                log = '{} likelihood\t is higher than {}\t in {:.1f}% of cases'\
+                    .format(type1, type2,
+                            100 * sum(np.round(log_lk_t1['loglk'] - log_lk_t2['loglk'], 0) > 0) / len(log_lk_t1))
+                log += '\n\t is equal to {}\t in {:.1f}% of cases'\
+                    .format(type2,
+                            100 * sum(np.round(log_lk_t1['loglk'] - log_lk_t2['loglk'], 0) == 0) / len(log_lk_t1))
+                log += '\n\t is lower than {}\t in {:.1f}% of cases'\
+                    .format(type2,
+                            100 * sum(np.round(log_lk_t1['loglk'] - log_lk_t2['loglk'], 0) < 0) / len(log_lk_t1))
                 print(log)
                 f.write(log + '\n')

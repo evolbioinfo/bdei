@@ -1,10 +1,18 @@
-real likelihood is the highest in 8% of cases.
-PhyloDeep likelihood is the highest in 1% of cases.
-PyBDEI (subtrees) likelihood is the highest in 3% of cases.
-PyBDEI likelihood is the highest in 88% of cases.
-PhyloDeep likelihood is higher than real in 17% of cases
-PyBDEI (subtrees) likelihood is higher than real in 74% of cases
-PyBDEI likelihood is higher than real in 92% of cases
-PhyloDeep likelihood is higher than PyBDEI (subtrees) in 11% of cases
-PhyloDeep likelihood is higher than PyBDEI in 6% of cases
-PyBDEI (subtrees) likelihood is higher than PyBDEI in 8% of cases
+PyBDEI likelihood	 is higher than PhyloDeep	 in 94.0% of cases
+	 is equal to PhyloDeep	 in 6.0% of cases
+	 is lower than PhyloDeep	 in 0.0% of cases
+PyBDEI likelihood	 is higher than PyBDEI (subtrees)	 in 35.0% of cases
+	 is equal to PyBDEI (subtrees)	 in 65.0% of cases
+	 is lower than PyBDEI (subtrees)	 in 0.0% of cases
+PyBDEI likelihood	 is higher than real	 in 82.0% of cases
+	 is equal to real	 in 18.0% of cases
+	 is lower than real	 in 0.0% of cases
+PhyloDeep likelihood	 is higher than PyBDEI (subtrees)	 in 1.0% of cases
+	 is equal to PyBDEI (subtrees)	 in 13.0% of cases
+	 is lower than PyBDEI (subtrees)	 in 86.0% of cases
+PhyloDeep likelihood	 is higher than real	 in 16.0% of cases
+	 is equal to real	 in 13.0% of cases
+	 is lower than real	 in 71.0% of cases
+PyBDEI (subtrees) likelihood	 is higher than real	 in 56.0% of cases
+	 is equal to real	 in 35.0% of cases
+	 is lower than real	 in 9.0% of cases

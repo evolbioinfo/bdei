@@ -1,4 +1,4 @@
-from pybdei import get_loglikelihood, ERRORS, WARNINGS, INFO, DEBUG
+from pybdei import get_loglikelihood, ERRORS, WARNINGS, INFO, DEBUG, PYBDEI_VERSION
 
 
 def main():
@@ -33,6 +33,18 @@ def main():
                                  help="Frequency of E at time 0, "
                                       "should be between 0 and 1. "
                                       "If not given, will be estimated from the model parameters.")
+    parameter_group.add_argument('--T', default=0, type=float,
+                                  help="Total time between the tree roots and the end of the epidemic "
+                                       "(to be given if all trees start at the same time). "
+                                       "If a positive value is given, the total time will be set to the maximum "
+                                       "between this value and the maximal time between the start "
+                                       "and the last sampled tip of all the trees. "
+                                       "If a zero or negative value is given, the time will be tree-specific "
+                                       "and estimated as the time between the root "
+                                       "and the last sampled tip for each tree."
+                                       "Note that if the number of unobserved trees (u) is given, "
+                                       "all the trees are assumed to have started at the same time, "
+                                       "hence T must be non-negative.")
     parser.add_argument('--log_level',
                         help="level of logging information "
                              "(the lower, the less information will be printed to the output). "
