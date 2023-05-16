@@ -14,8 +14,8 @@ REPETITIONS = list(range(100))
 
 rule all:
     input:
-        # expand(os.path.join(sim_folder, '{dataset}', 'errors.svg'), dataset=DATASETS),
-        # expand(os.path.join(sim_folder, 'large', 'errors_tree_mu_la_psi_p.svg'), dataset=DATASETS),
+        expand(os.path.join(sim_folder, '{dataset}', 'errors.svg'), dataset=DATASETS),
+        expand(os.path.join(sim_folder, 'large', 'errors_tree_mu_la_psi_p.svg'), dataset=DATASETS),
         expand(os.path.join(sim_folder, '{dataset}', 'likelihood_stats.txt'), dataset=DATASETS),
 
 
@@ -35,7 +35,7 @@ rule likelihood_stats:
         qos = 'fast',
         nwk = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{}.nwk')
     threads: 1
-    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    singularity: "docker://evolbioinfo/bdei:v0.4"
     shell:
         """
         python3 py/likelihood_comparison.py --estimates {input.tab} \
