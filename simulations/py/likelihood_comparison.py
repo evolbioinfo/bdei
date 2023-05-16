@@ -39,12 +39,6 @@ if __name__ == "__main__":
     lk_df.to_csv(params.likelihoods, sep='\t')
 
     with open(params.log, 'w+') as f:
-        # for type in ALL_TYPES:
-        #     log_lk_t = lk_df[lk_df['type'] == type]
-        #     log = '{} likelihood is the highest in {:.0f}% of cases.'\
-        #         .format(type, 100 * sum(np.round(log_lk_t['diff with max'], 2) == 0) / len(log_lk_t))
-        #     print(log)
-        #     f.write(log + '\n')
 
         for i in range(len(ALL_TYPES)):
             type1 = ALL_TYPES[i]
