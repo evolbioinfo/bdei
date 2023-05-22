@@ -1,0 +1,186 @@
+import os
+
+# To run locally:
+# snakemake --snakefile Snakefile_u --keep-going --cores 20 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
+
+# To run on bioevo (change shakemake activation below if you are not Anna ;) :
+# source ~/.bashrc && conda activate snakemake && module load apptainer && cd /pasteur/zeus/projets/p01/Evolbioinfo/users/azhukova/projects/bdei/simulations
+# snakemake --snakefile Snakefile_estimate --keep-going --cores 1 --use-singularity --singularity-prefix $HOME/.singularity --singularity-args "-B /pasteur" --cluster "sbatch -c {threads} -o logs/{params.name}.log -e logs/{params.name}.log --mem {params.mem} -p bioevo --qos={params.qos}  -A bioevo -J {params.name}" --jobs 300
+
+
+localrules: all
+
+os.makedirs('logs', exist_ok=True)
+sim_folder = os.path.abspath('.')
+DATASETS = ['medium', 'large']
+REPETITIONS = list(range(100))
+
+PSI = 0.7
+LA = 1.4
+MU = 0.35
+P = 0.4
+T = 35
+
+
+rule all:
+    input:
+        os.path.join(sim_folder, 'u', 'u.svg'),
+        os.path.join(sim_folder,'u','estimates.tab'),
+        expand(os.path.join(sim_folder, 'u', 'forest.psi.{i}_{u}.est'), i=REPETITIONS, u=range(0, 1050, 50))
+
+
+rule estimate_params_psi_fixed:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, 'u', 'forest.{i}.nwk'),
+        log = os.path.join(sim_folder, 'u', 'forest.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, 'u', 'forest.psi.{i,\d+}_{u}.est'),
+    params:
+        mem = 2000,
+        name = 'estimate',
+        qos = 'fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.2"
+    shell:
+        """
+        psi=`tail -n 1 {input.log} | awk 'BEGIN {{ FS = "," }} ; {{ print 1/$2 }}'`
+        T=`tail -n 1 {input.log} | awk 'BEGIN {{ FS = "," }} ; {{ print $6 }}'`
+
+        bdei_infer -u {wildcards.u} --psi $psi -t {threads} --nwk {input.nwk} --log {output.est} --T $T -c 100
+        """
+
+rule estimate_params_p_fixed:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, 'u', 'forest.{i}.nwk'),
+        log = os.path.join(sim_folder, 'u', 'forest.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, 'u', 'forest.{i,\d+}_{u}.est'),
+        lk = os.path.join(sim_folder, 'u', 'forest.{i,\d+}_{u}.lk'),
+    params:
+        mem = 2000,
+        name = 'estimate',
+        qos = 'fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.2"
+    shell:
+        """
+        p=`tail -n 1 {input.log} | awk 'BEGIN {{ FS = "," }} ; {{ print $4 }}'`
+        T=`tail -n 1 {input.log} | awk 'BEGIN {{ FS = "," }} ; {{ print $6 }}'`
+        cat {input.log}
+
+        echo "bdei_infer -u {wildcards.u} --p $p -t {threads} --nwk {input.nwk} --log {output.est} --T $T"
+        bdei_infer -u {wildcards.u} --p $p -t {threads} --nwk {input.nwk} --log {output.est} --T $T --log_level 0 -c 100
+
+        mu=`tail -n 1 {output.est} | awk -F'\t' '{{ print $1 }}'`
+        la=`tail -n 1 {output.est} | awk -F'\t' '{{ print $3 }}'`
+        psi=`tail -n 1 {output.est} | awk -F'\t' '{{ print $5 }}'`
+        p=`tail -n 1 {output.est} | awk -F'\t' '{{ print $7 }}'`
+
+        bdei_loglikelihood -u {wildcards.u} --p $p --mu $mu --la $la --psi $psi --nwk {input.nwk} --T $T \
+        --log_level 0 > {output.lk}
+        """
+
+rule estimate_params_p_fixed_real_u:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, 'u', 'forest.{i}.nwk'),
+        log = os.path.join(sim_folder, 'u', 'forest.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, 'u', 'forest.{i,\d+}.est'),
+        lk = os.path.join(sim_folder, 'u', 'forest.{i,\d+}.lk'),
+    params:
+        mem = 2000,
+        name = 'estimate',
+        qos = 'fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.2"
+    shell:
+        """
+        p=`tail -n 1 {input.log} | awk 'BEGIN {{ FS = "," }} ; {{ print $4 }}'`
+        T=`tail -n 1 {input.log} | awk 'BEGIN {{ FS = "," }} ; {{ print $6 }}'`
+        u=`tail -n 1 {input.log} | awk 'BEGIN {{ FS = "," }} ; {{ print $7 }}'`
+        cat {input.log}
+
+        echo "bdei_infer -u $u --p $p -t {threads} --nwk {input.nwk} --log {output.est} --T $T"
+        bdei_infer -u $u --p $p -t {threads} --nwk {input.nwk} --log {output.est} --T $T --log_level 0 -c 100
+
+        mu=`tail -n 1 {output.est} | awk -F'\t' '{{ print $1 }}'`
+        la=`tail -n 1 {output.est} | awk -F'\t' '{{ print $3 }}'`
+        psi=`tail -n 1 {output.est} | awk -F'\t' '{{ print $5 }}'`
+        p=`tail -n 1 {output.est} | awk -F'\t' '{{ print $7 }}'`
+
+        bdei_loglikelihood -u $u --p $p --mu $mu --la $la --psi $psi --nwk {input.nwk} --T $T \
+        --log_level 0 > {output.lk}
+        """
+
+rule simulate_bdei:
+    '''
+    Simulates a tree for given BDEI parameters.
+    '''
+    output:
+        nwk = os.path.join(sim_folder, 'u', 'forest.{i}.nwk'),
+        log = os.path.join(sim_folder, 'u', 'forest.{i}.log'),
+    params:
+        mem = 2000,
+        name = 'forest',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/treesimulator:v0.1.2"
+    shell:
+        """
+        generate_bdei --min_tips 5000 --max_tips 10000 --mu {MU} --la {LA} --psi {PSI} --p {P} --T {T} \
+        --nwk {output.nwk} --log {output.log}
+        """
+
+
+rule combine_estimates:
+    '''
+    Combine estimates.
+    '''
+    input:
+        log = expand(os.path.join(sim_folder, 'u', 'forest.{i}.log'), i=range(100)),
+        est_p = expand(os.path.join(sim_folder, 'u', 'forest.{i}.est'), i=range(100)),
+    output:
+        tab = os.path.join(sim_folder, 'u', 'estimates.tab'),
+    params:
+        mem = 2000,
+        name = 'estimates',
+        qos = 'fast',
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/summary_table_u.py --real {input.log} --estimated {input.est_p} --tab {output.tab}
+        """
+
+
+rule visualize_u:
+    '''
+    Visualized parameter estimations for different values of u.
+    '''
+    input:
+        est = expand(os.path.join(sim_folder, 'u', 'forest.{i}_{u}.est'), u=range(0, 1050, 50), i=range(100)),
+        lk = expand(os.path.join(sim_folder, 'u', 'forest.{i}_{u}.lk'), u=range(0, 1050, 50), i=range(100)),
+        log = expand(os.path.join(sim_folder, 'u', 'forest.{i}.log'), i=range(100)),
+        nwk = expand(os.path.join(sim_folder, 'u', 'forest.{i}.nwk'), i=range(100)),
+    output:
+        svg = os.path.join(sim_folder, 'u', 'u.svg'),
+    params:
+        mem = 2000,
+        name = 'forest',
+        qos = 'fast',
+        data = os.path.join(sim_folder, 'u')
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/plot_u.py --data {params.data} --svg {output.svg}
+        """

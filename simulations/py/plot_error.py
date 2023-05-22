@@ -1,4 +1,3 @@
-import logging
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
@@ -25,8 +24,6 @@ if __name__ == "__main__":
     parser.add_argument('--tab', type=str, help="error table")
     parser.add_argument('--no_forests', action='store_true')
     params = parser.parse_args()
-    logging.getLogger().handlers = []
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s: %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
 
     df = pd.read_csv(params.estimates, sep='\t', index_col=0)
 
