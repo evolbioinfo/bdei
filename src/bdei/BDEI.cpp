@@ -836,15 +836,13 @@ int oneeee = 0;
 double duratinit = 0, duratopt = 0, duratbuild = 0, duraterr = 0;
 
 template<class RR>
-RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, R eps = 1e-5) {
+RR JCout(RR *x, R pie, bool u, const vector<DataOde> &vdo, R eps = 1e-5) {
     RR Cout = 0;
     BDEI_pb<RR> pb(x, pie);
     int ni = 0;
     int n = (int) vdo.size();
     vector<RR> CC(n);
     assert(n);
-    R T = vdo[0].T;
-    assert(T);
     {
         thread_pool tp(size_pool);
         for (int i = 0; i < n; ++i) {
@@ -866,21 +864,30 @@ RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, R eps = 1e-5) {
     int nt = ni + fs;//  nb de feuilles/ tips
     Cout += nt * log(pb.psi * pb.p); // sampling
     Cout += (nt - fs) * log(pb.la); // transmissions
-    Cout += u * log(pb.piE * pb.fU(T, 0) + pb.piI * pb.fU(T, 1)); // unsampled trees
+
+
+    if (u)
+    {
+        R T = vdo[0].T;
+        RR hidden_prob = pb.piE * pb.fU(T, 0) + pb.piI * pb.fU(T, 1);
+        RR u = RR(fs) / (RR(1.) - hidden_prob) * hidden_prob;
+//        cout << "Adding " << u << "hidden trees" << endl;
+        Cout += u * log(hidden_prob); // u unsampled trees
+    }
 
     return -Cout;
 }
 
 
 template<class RR>
-RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, const vector<tuple<double, int, int >> &vs, R eps = 1e-5);
+RR JCout(RR *x, R pie, bool u, const vector<DataOde> &vdo, const vector<tuple<double, int, int >> &vs, R eps = 1e-5);
 
 class J_vdo {
 public:
     const vector<DataOde> &vdo;
     vector<tuple<double, int, int >> *vs;
     const R *p0;
-    R u;
+    bool u;
     R eps;
     R pie;
     long count;
@@ -895,11 +902,11 @@ public:
     vector<double> dir; //
     int nnewton;
 
-    J_vdo(const vector<DataOde> &vdoo, const R *pp, R piee, R uu, R epss = 1e-6, int dd = 0)
+    J_vdo(const vector<DataOde> &vdoo, const R *pp, R piee, bool uu, R epss = 1e-6, int dd = 0)
             : vdo(vdoo), vs(0), p0(pp), pie(piee), u(uu), eps(epss), count(0), debug(dd), num(4), Jm(nan("")), xopt(), dd(0),
               dsens(0), dir(), nnewton(0) { init(); }
 
-    J_vdo(const vector<DataOde> &vdoo, vector<tuple<double, int, int >> &vss, const R *pp, R piee, R uu, R epss = 1e-6,
+    J_vdo(const vector<DataOde> &vdoo, vector<tuple<double, int, int >> &vss, const R *pp, R piee, bool uu, R epss = 1e-6,
           int dd = 0)
             : vdo(vdoo), vs(&vss), p0(pp), pie(piee), u(uu), eps(epss), count(0), debug(dd), num(4), Jm(nan("")), xopt(), dd(0),
               dsens(0), dir(4), nnewton(0) { init(); }
@@ -916,7 +923,7 @@ public:
         assert(dd.size() == 4);
     }
 
-    J_vdo(const vector<DataOde> &vdoo, vector<tuple<double, int, int >> &vss, const R *pp, R piee, R uu, R epss, int dd,
+    J_vdo(const vector<DataOde> &vdoo, vector<tuple<double, int, int >> &vss, const R *pp, R piee, bool uu, R epss, int dd,
           double JJm, vector<double> xxopt, double JJopt)
             : vdo(vdoo), vs(&vss), p0(pp), pie(piee), u(uu), eps(epss), count(0),
               debug(dd), num(4), Jm(JJm), xopt(xxopt), Jopt(JJopt),
@@ -1171,14 +1178,13 @@ void mult(RR *m, RR *p) {
 }
 
 template<class RR>
-RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, const vector<tuple<double, int, int >> &vs, R eps) {
+RR JCout(RR *x, R pie, bool u, const vector<DataOde> &vdo, const vector<tuple<double, int, int >> &vs, R eps) {
     RR Cout = 0;
     auto start = high_resolution_clock::now();
     BDEI_pb<RR> pb(x, pie);
     auto afterpb = high_resolution_clock::now();
     int ni = 0;// number of internal node ..
     int n = (int) vdo.size();
-    R T = vdo[0].T;
     vector<RR> m22 = Build(vs, pb, eps);
     auto afterbuild = high_resolution_clock::now();
     vector<RR> pp(4 * vdo.size());
@@ -1226,7 +1232,15 @@ RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, const vector<tuple<doubl
     int nt = ni + fs;//  nb de feuilles/ tips
     Cout += nt * log(pb.psi * pb.p); // sampling of tips
     Cout += (nt - fs) * log(pb.la); // transmissions
-    Cout += u * log(pb.piE * pb.fU(T, 0) + pb.piI * pb.fU(T, 1)); // unobserved trees
+
+    if (u)
+    {
+        R T = vdo[0].T;
+        RR hidden_prob = pb.piE * pb.fU(T, 0) + pb.piI * pb.fU(T, 1);
+        RR u = RR(fs) / (RR(1.) - hidden_prob) * hidden_prob;
+//        cout << "Adding " << u << "hidden trees" << endl;
+        Cout += u * log(hidden_prob); // u unsampled trees
+    }
     auto end = high_resolution_clock::now();
 
     duratinit += duration_cast<duration<double>>(afterpb - start).count();
@@ -1247,7 +1261,6 @@ void showparam(R *x0, string nwk, const char *algo_name[]) {
     cout << "   -lambda  <lock value of lambda, , (<0 unlock)> \n";
     cout << "   -d       <value of debug> \n";
     cout << "   -T       <value of T> \n";
-    cout << "   -u       <value of u> \n";
     cout << "   -eps     <value of eps> \n";
     cout << "   -nt      <value of number of thread > \n";
     cout << "   -nbdirerr  <value> : nb of direction to compute error bound with random direction   \n";
@@ -1349,8 +1362,8 @@ vector<DataOde> &getForestDataODE(Forest &forest, R T, vector<DataOde> &vdo, int
         if (_debug >= infoVal)  cout << "Using tree-specific sampling periods (between tree start and tree's last sampled tip)." << endl;
         SetDataOde(forest, vdo);
     } else {
-        if (_debug >= infoVal)  cout << "Using global time " << T << " for the sampling period." << endl;
         T = max(T, forest.T);
+        if (_debug >= infoVal)  cout << "Using global time " << T << " for the sampling period." << endl;
         SetDataOde(forest, vdo, T);
     }
     return vdo;
@@ -1394,8 +1407,9 @@ vector<tuple<double, int, int>> &getVS(vector<DataOde> &vdo, vector<tuple<double
 }
 
 
-R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R T, R u, int _debug) {
+R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R T, int _debug) {
     vector<DataOde> vdo;
+    bool u = (T > 0) ? 1: 0;
     vdo = getForestDataODE(forest, T, vdo, _debug);
 
     vector<tuple<double, int, int >> vs;
@@ -1423,15 +1437,15 @@ R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R T, R u, in
 
 
 
-R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R T, R u, int _debug) {
+R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R T, int _debug) {
     debug = _debug;
     Forest forest(treename);
-    return calcLikelihood(forest, mu, lambda, psi, p, pie, T, u, _debug);
+    return calcLikelihood(forest, mu, lambda, psi, p, pie, T, _debug);
 }
 
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u,
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T,
                 int nbdirerr, int nt, int debug_, int nStarts) {
     debug = debug_;
 
@@ -1454,6 +1468,7 @@ Solution
 
     Forest forest(treename);
     vector<DataOde> vdo;
+    bool u = (T > 0) ? 1: 0;
     vdo = getForestDataODE(forest, T, vdo, debug_);
 
     vector<tuple<double, int, int >> vs;
@@ -1465,7 +1480,7 @@ Solution
     if (debug >= debugVal)
         cout << "forest file: " << treename << endl;
 //             << ", mu  = " << mu << ", lambda = " << lambda << ", psi = " << psi << ", p = " << p
-//             << ", T = " << T << ", u = " << u << endl;
+//             << ", T = " << T << endl;
     R predefdata[] = {mu, lambda, psi, p};
     vector<double> xsol(4); // to store the solution ...
     int nbdata = 0;
@@ -1510,8 +1525,8 @@ Solution
             cout << "  starting values for optimised parameters: " << xj << endl;
             cout << "  upper bounds : " << ub << endl;
 
-            R sol2 = calcLikelihood(forest, xj[0], xj[1], xj[2], x0[3], pie, T, u, 0);
-            cout << "  initial log-likelihood: " << setprecision(10) << sol2 << endl;
+//            R sol2 = calcLikelihood(forest, xj[0], xj[1], xj[2], x0[3], pie, T, 0);
+//            cout << "  initial log-likelihood: " << setprecision(10) << sol2 << endl;
         }
         bool ok = false;
         try {
@@ -1569,20 +1584,20 @@ Solution
 
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u,
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T,
                 int nbdirerr, int nt, int nstarts) {
-    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, infoVal, nstarts);
+    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, nbdirerr, nt, infoVal, nstarts);
 }
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr, int nt) {
-    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, infoVal, 1);
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, int nbdirerr, int nt) {
+    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, nbdirerr, nt, infoVal, 1);
 }
 
 int main(int argc, const char *argv[]) {
     string treename = "";
     int nbdirerr = 0;
-    R T = 0, u = 0;
+    R T = 0;
     R p = -1;
     R mu = -1;
     R lambda = -1;
@@ -1627,10 +1642,6 @@ int main(int argc, const char *argv[]) {
             T = atof(argv[kk + 2]);
             kk += 2;
         }
-        else if (argc > kk + 2 && strcmp(argv[kk + 1], "-u") == 0) {
-            u = atof(argv[kk + 2]);
-            kk += 2;
-        }
         else if (argc > kk + 2 && strcmp(argv[kk + 1], "-nt") == 0) {
             size_pool = atoi(argv[kk + 2]);
             kk += 2;
@@ -1661,7 +1672,7 @@ int main(int argc, const char *argv[]) {
     }
     if (argc > ++kk) treename = argv[kk];
 
-    Solution *res = inferParameters(treename, x0, dub, -1., mu, lambda, psi, p, T, u, nbdirerr, size_pool, debug, 1);
+    Solution *res = inferParameters(treename, x0, dub, -1., mu, lambda, psi, p, T, nbdirerr, size_pool, debug, 1);
     if (res) {
         return 0;
     }

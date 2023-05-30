@@ -106,15 +106,10 @@ def initial_rate_guess(forest, mu=None, la=None, psi=None):
 
 
 def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
-          mu=-1, la=-1, psi=-1, p=-1, T=0.0, u=0, CI_repetitions=0, threads=1, log_level=INFO, **kwargs):
+          mu=-1, la=-1, psi=-1, p=-1, T=0.0, CI_repetitions=0, threads=1, log_level=INFO, **kwargs):
     """Infer BDEI parameters from a phylogenetic tree."""
 
     forest = None
-
-    if u > 0 and T <= 0:
-        raise ValueError("The number of unobserved trees is positive (u={}), "
-                         "hence all the trees are assumed to have started at the same time, "
-                         "and a non-zero T must be given.".format(u))
 
     if isinstance(start, BDEI_result):
         start = np.array([start.mu, start.la, start.psi, start.p])
@@ -188,7 +183,7 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
 
     def get_res(_nwk):
         return _pybdei.infer(f=_nwk, start=starts, ub=upper_bounds, pie=pi_E,
-                             mu=mu, la=la, psi=psi, p=p, T=T, u=u, nt=threads, nbiter=CI_repetitions,
+                             mu=mu, la=la, psi=psi, p=p, T=T, nt=threads, nbiter=CI_repetitions,
                              debug=log_level, nstarts=nstarts)
 
     try:
@@ -213,14 +208,8 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
            BDEI_time(CPU_time=res[13], iterations=res[14])
 
 
-def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0.0, u=0, log_level=INFO, params=None, **kwargs):
+def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0.0, log_level=INFO, params=None, **kwargs):
     """Calculate loglikelihood for given BDEI parameters from a phylogenetic tree."""
-
-    if u > 0 and T <= 0:
-        raise ValueError("The number of unobserved trees is positive (u={}), "
-                         "hence all the trees are assumed to have started at the same time, "
-                         "and a non-zero T must be given.".format(u))
-
     if params is not None:
         if isinstance(params, BDEI_result):
             mu = params.mu
@@ -235,12 +224,12 @@ def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0.0, u=0, log_
                              'either via dedicated arguments or via the params argument')
 
     try:
-        res = _pybdei.likelihood(f=nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, u=u, debug=log_level)
+        res = _pybdei.likelihood(f=nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, debug=log_level)
     except:
         temp_nwk = nwk + '.temp'
         forest = parse_forest(nwk)
         save_forest(forest, temp_nwk)
-        res = _pybdei.likelihood(f=temp_nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, u=u, debug=log_level)
+        res = _pybdei.likelihood(f=temp_nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, debug=log_level)
         try:
             os.remove(temp_nwk)
         except OSError:

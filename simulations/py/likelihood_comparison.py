@@ -1,6 +1,7 @@
 import pandas as pd
 from pybdei import get_loglikelihood
 import numpy as np
+from scipy.stats import binomtest
 
 PYBDEI = 'PyBDEI'
 
@@ -46,14 +47,17 @@ if __name__ == "__main__":
             for j in range(i + 1, len(ALL_TYPES)):
                 type2 = ALL_TYPES[j]
                 log_lk_t2 = lk_df[lk_df['type'] == type2]
+                n_higher = sum(np.round(log_lk_t1['loglk'] - log_lk_t2['loglk'], 0) > 0)
                 log = '{} likelihood\t is higher than {}\t in {:.1f}% of cases'\
-                    .format(type1, type2,
-                            100 * sum(np.round(log_lk_t1['loglk'] - log_lk_t2['loglk'], 0) > 0) / len(log_lk_t1))
+                    .format(type1, type2, 100 * n_higher / len(log_lk_t1))
+                n_equal = sum(np.round(log_lk_t1['loglk'] - log_lk_t2['loglk'], 0) == 0)
                 log += '\n\t is equal to {}\t in {:.1f}% of cases'\
-                    .format(type2,
-                            100 * sum(np.round(log_lk_t1['loglk'] - log_lk_t2['loglk'], 0) == 0) / len(log_lk_t1))
+                    .format(type2, 100 * n_equal / len(log_lk_t1))
+                n_lower = sum(np.round(log_lk_t1['loglk'] - log_lk_t2['loglk'], 0) < 0)
                 log += '\n\t is lower than {}\t in {:.1f}% of cases'\
-                    .format(type2,
-                            100 * sum(np.round(log_lk_t1['loglk'] - log_lk_t2['loglk'], 0) < 0) / len(log_lk_t1))
+                    .format(type2, 100 * n_lower / len(log_lk_t1))
+
+                p = binomtest(min(n_higher, n_lower), n_higher + n_lower, 0.5, alternative='two-sided').pvalue
+                log += '\n\t is different from {}\t with a p-value of {:g}'.format(type2, p)
                 print(log)
                 f.write(log + '\n')

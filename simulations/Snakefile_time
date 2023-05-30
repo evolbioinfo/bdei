@@ -60,11 +60,10 @@ rule estimate_params_p_fixed_threads:
     shell:
         """
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
-        cat {input.log}
+        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
 
-        for t in $(seq 1 3)
+        for th in $(seq 1 3)
         do
-            echo "bdei_infer --p $p -t $t --nwk {input.nwk} --time_log {params.pattern}"
-            bdei_infer --p $p --nwk {input.nwk} -t $t -c 100 --log_level 0 --time_log {params.pattern}
+            bdei_infer --p $p --nwk {input.nwk} -t $th -c 100 --log_level 0 --time_log {params.pattern} --T $T
         done
         """

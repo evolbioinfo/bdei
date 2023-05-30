@@ -41,22 +41,6 @@ if __name__ == "__main__":
         real_fs.append(REAL_F)
         real_tips.append(REAL_TIPS)
 
-        # lks = []
-        # us = []
-        # for f in glob(os.path.join(params.data, 'forest.{i}_*.lk'.format(i=i))):
-        #     u = re.findall(r'_(\d+).lk', f)[0]
-        #     lk = float(open(f, 'r').read())
-        #     us.append(u)
-        #     lks.append(lk)
-        #
-        # us = np.array(us, dtype=int)
-        # neworder = np.argsort(us)
-        # us = us[neworder]
-        # ts = us + REAL_F
-        # lks = np.array(lks, dtype=int)[neworder]
-        # plot(us, lks / ts)
-
-
         us = []
         mus = []
         las = []

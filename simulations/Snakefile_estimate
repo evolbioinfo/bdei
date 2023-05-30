@@ -12,13 +12,12 @@ localrules: all
 
 os.makedirs('logs', exist_ok=True)
 sim_folder = os.path.abspath('.')
-DATASETS = ['medium', 'large']
 REPETITIONS = list(range(100))
 
 rule all:
     input:
-        expand(os.path.join(sim_folder, 'large', 'clusters', 'cluster.{i}.est'), i=REPETITIONS),
-        expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.est'), i=REPETITIONS, dataset=DATASETS),
+        expand(os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.est'), i=REPETITIONS),
+        expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.est'), i=REPETITIONS, type=['forest', 'cluster', 'tree']),
         expand(os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.est_{param}'), i=REPETITIONS, param=['mu', 'la', 'psi']),
 
 rule estimate_params_p_fixed:
@@ -38,13 +37,12 @@ rule estimate_params_p_fixed:
     singularity: "docker://evolbioinfo/bdei:v0.2"
     shell:
         """
-        u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
         T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
         cat {input.log}
 
-        echo "bdei_infer -u $u --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est} --T $T"
-        bdei_infer -u $u --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est} --T $T
+        echo "bdei_infer --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est} --T $T"
+        bdei_infer --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est} --T $T
         """
 
 rule estimate_params_mu_fixed:
@@ -64,12 +62,11 @@ rule estimate_params_mu_fixed:
     singularity: "docker://evolbioinfo/bdei:v0.2"
     shell:
         """
-        u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
         mu=`tail -n 1 {input.log} | awk '{{ print $5 }}'`
         T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
         cat {input.log}
 
-        bdei_infer -u $u --mu $mu -t {threads} --nwk {input.nwk} --log {output.est} --T $T
+        bdei_infer --mu $mu -t {threads} --nwk {input.nwk} --log {output.est} --T $T
         """
 
 rule estimate_params_la_fixed:
@@ -89,12 +86,11 @@ rule estimate_params_la_fixed:
     singularity: "docker://evolbioinfo/bdei:v0.2"
     shell:
         """
-        u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
         la=`tail -n 1 {input.log} | awk '{{ print $6 }}'`
         T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
         cat {input.log}
 
-        bdei_infer -u $u --la $la -t {threads} --nwk {input.nwk} --log {output.est} --T $T
+        bdei_infer --la $la -t {threads} --nwk {input.nwk} --log {output.est} --T $T
         """
 
 rule estimate_params_psi_fixed:
@@ -114,11 +110,10 @@ rule estimate_params_psi_fixed:
     singularity: "docker://evolbioinfo/bdei:v0.2"
     shell:
         """
-        u=`tail -n 1 {input.log} | awk '{{ print $3 }}'`
         psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
         T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
         cat {input.log}
 
-        bdei_infer -u $u --psi $psi -t {threads} --nwk {input.nwk} --log {output.est} --T $T
+        bdei_infer --psi $psi -t {threads} --nwk {input.nwk} --log {output.est} --T $T
         """
 

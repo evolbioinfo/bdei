@@ -1,18 +1,24 @@
 PyBDEI likelihood	 is higher than BEAST2	 in 15.3% of cases
 	 is equal to BEAST2	 in 84.7% of cases
 	 is lower than BEAST2	 in 0.0% of cases
+	 is different from BEAST2	 with a p-value of 6.10352e-05
 PyBDEI likelihood	 is higher than PhyloDeep	 in 48.0% of cases
 	 is equal to PhyloDeep	 in 52.0% of cases
 	 is lower than PhyloDeep	 in 0.0% of cases
+	 is different from PhyloDeep	 with a p-value of 1.42109e-14
 PyBDEI likelihood	 is higher than real	 in 83.7% of cases
 	 is equal to real	 in 16.3% of cases
 	 is lower than real	 in 0.0% of cases
+	 is different from real	 with a p-value of 4.1359e-25
 BEAST2 likelihood	 is higher than PhyloDeep	 in 36.7% of cases
 	 is equal to PhyloDeep	 in 54.1% of cases
 	 is lower than PhyloDeep	 in 9.2% of cases
+	 is different from PhyloDeep	 with a p-value of 6.57466e-05
 BEAST2 likelihood	 is higher than real	 in 70.4% of cases
 	 is equal to real	 in 21.4% of cases
 	 is lower than real	 in 8.2% of cases
+	 is different from real	 with a p-value of 3.13735e-13
 PhyloDeep likelihood	 is higher than real	 in 60.2% of cases
 	 is equal to real	 in 30.6% of cases
 	 is lower than real	 in 9.2% of cases
+	 is different from real	 with a p-value of 3.91412e-10

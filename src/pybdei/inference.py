@@ -13,10 +13,6 @@ def main():
     tree_group = parser.add_argument_group('tree-related arguments')
     tree_group.add_argument('--nwk', help="Input tree(s) in newick format (must be rooted).",
                             type=str, required=True)
-    tree_group.add_argument('-u', '--u', help="Number of unobserved trees. "
-                                              "Can be non-zero only when all trees started at the same time "
-                                              "(i.e. T is given).",
-                            type=int, default=0)
 
     parameter_group = parser.add_argument_group('parameter-related arguments')
     parameter_group.add_argument('--mu', default=-1, type=float,
@@ -51,10 +47,7 @@ def main():
                                        "and the last sampled tip of all the trees. "
                                        "If a zero or negative value is given, the time will be tree-specific "
                                        "and estimated as the time between the root "
-                                       "and the last sampled tip for each tree."
-                                       "Note that if the number of unobserved trees (u) is given, "
-                                       "all the trees are assumed to have started at the same time, "
-                                       "hence T must be non-negative.")
+                                       "and the last sampled tip for each tree.")
 
     result_group = parser.add_argument_group('output-related arguments')
     result_group.add_argument('-c', '--CI_repetitions', default=0,

@@ -19,6 +19,7 @@ REPETITIONS = list(range(100))
 rule all:
     input:
         expand(os.path.join(sim_folder, 'large', 'clusters', 'cluster.{i}.nwk'), i=range(100)),
+        expand(os.path.join(sim_folder, 'large', 'forests', 'forest.{i}.nwk'), i=range(100)),
         expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.nwk'), i=range(100), dataset=DATASETS),
 
 
@@ -70,4 +71,26 @@ rule prepare_clusters_large:
         f=`grep -o ';' {output.nwk}  | wc -l`
         echo "tips	f	u	T	mu	la	psi	p" > {output.log}
         echo "NA	$f	0	0	$mu	$la	$psi	$p" >> {output.log}
+        """
+
+rule prepare_forests_large:
+    '''
+    Cuts large trees removing the top X%.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.nwk'),
+        log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
+    output:
+        nwk = os.path.join(sim_folder, 'large', 'forests', 'forest.{i}.nwk'),
+        log = os.path.join(sim_folder, 'large', 'forests', 'forest.{i}.log'),
+    params:
+        mem = 2000,
+        name = 'forest_{i}',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/cut_tree.py --in_nwk {input.nwk} --in_log {input.log} --out_nwk {output.nwk} --out_log {output.log} \
+        --threshold 0.25
         """

@@ -19,10 +19,9 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Plots errors.")
-    parser.add_argument('--estimates', type=str, help="estimated parameters")
-    parser.add_argument('--pdf', type=str, help="plot")
-    parser.add_argument('--tab', type=str, help="error table")
-    parser.add_argument('--no_forests', action='store_true')
+    parser.add_argument('--estimates', type=str, help="estimated parameters", default='/home/azhukova/projects/bdei_main/simulations/large/estimates.tab')
+    parser.add_argument('--pdf', type=str, help="plot", default='/home/azhukova/projects/bdei_main/simulations/large/errors.svg')
+    parser.add_argument('--tab', type=str, help="error table", default='/home/azhukova/projects/bdei_main/simulations/large/errors.tab')
     params = parser.parse_args()
 
     df = pd.read_csv(params.estimates, sep='\t', index_col=0)
@@ -70,15 +69,13 @@ if __name__ == "__main__":
                     pval_abs = \
                         CompareMeans.from_data(data1=df.loc[df['type'] == type_1, '{}_error'.format(par)].apply(np.abs),
                                                data2=df.loc[df['type'] == type_2, '{}_error'.format(par)].apply(np.abs)).ztest_ind()[1]
-                    if 'forest' in type_1 or 'forest' in type_2:
-                        pval_abs = 1
                     par2types2pval[par][(type_1, type_2)] = pval_abs
 
         ERROR_COL = 'relative error'
         plot_df = pd.DataFrame(data=data, columns=['parameter', ERROR_COL, 'config'])
 
         if 'BEAST2' not in types:
-            palette = [sns.color_palette("colorblind")[2], sns.color_palette("colorblind")[0], sns.color_palette("colorblind")[-1]]
+            palette = [sns.color_palette("colorblind")[2], sns.color_palette("colorblind")[0], sns.color_palette("colorblind")[-1], sns.color_palette("colorblind")[4]]
         else:
             palette = [sns.color_palette("colorblind")[1], sns.color_palette("colorblind")[2],
                        sns.color_palette("colorblind")[0]]
@@ -100,18 +97,18 @@ if __name__ == "__main__":
             boxes = [TextArea(text, textprops=dict(color=color, ha='center', va='center', fontsize='x-small',
                                                    fontweight='bold'))
                      for text, color in zip((par2type2avg_error[par][_] for _ in types), palette)]
-            return HPacker(children=boxes, align="center", pad=0, sep=3)
-        xbox = HPacker(children=[get_xbox(par) for par in pars], align="center", pad=0, sep=14)
+            return HPacker(children=boxes, align="center", pad=0, sep=3 if n_types == 3 else 1)
+        xbox = HPacker(children=[get_xbox(par) for par in pars], align="center", pad=0, sep=14 if n_types == 3 else 23)
         anchored_xbox = AnchoredOffsetbox(loc=3, child=xbox, pad=0, frameon=False,
-                                          bbox_to_anchor=(0.06 if n_types == 3 else 0.09, -0.14),
+                                          bbox_to_anchor=(0.06 if n_types == 3 else 0.03, -0.14),
                                           bbox_transform=ax.transAxes, borderpad=0.)
         ax.set_xlabel('')
         ax.add_artist(anchored_xbox)
 
         def get_pbox(par):
-            EMPTY = ' ' * 10
+            EMPTY = ' ' * (10 if n_types == 3 else 12)
             LONG_DASH = u"\u2014"
-            FILLED = LONG_DASH * 10
+            FILLED = LONG_DASH * (10 if n_types == 3 else 12)
             boxes = []
             for i in range(n_types - 1):
                 type_1 = types[i]
@@ -129,9 +126,9 @@ if __name__ == "__main__":
                                                              fontsize='x-small', fontweight='bold', family='monospace')))
                     s += FILLED
             return VPacker(children=list(reversed(boxes)), mode='equal', pad=0, sep=3) if len(boxes) > 1 else boxes[0]
-        xbox = HPacker(children=[get_pbox(par) for par in pars], align="center", pad=0, sep=20)
+        xbox = HPacker(children=[get_pbox(par) for par in pars], align="center", pad=0, sep=20 if n_types == 3 else 11)
         anchored_xbox = AnchoredOffsetbox(loc=3, child=xbox, pad=0, frameon=False,
-                                          bbox_to_anchor=(0.17 if n_types == 3 else 0.20, 1),
+                                          bbox_to_anchor=(0.17 if n_types == 3 else 0.01, 0.8),
                                           bbox_transform=ax.transAxes, borderpad=0.)
         ax.set_xlabel('')
         ax.add_artist(anchored_xbox)
@@ -139,7 +136,8 @@ if __name__ == "__main__":
         if pars != RATE_PARAMETERS:
             leg.remove()
 
-    fig.set_size_inches(9 if n_types == 3 else 6.5, 8 if n_types == 3 else 6)
-    plt.tight_layout()
+    if n_types == 3:
+        fig.set_size_inches(9, 9)
+    # plt.tight_layout()
     # plt.show()
     plt.savefig(params.pdf, dpi=300)

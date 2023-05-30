@@ -46,7 +46,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Plots errors.")
-    parser.add_argument('--estimates', default='../medium/estimates.tab', type=str, help="estimated parameters")
+    parser.add_argument('--estimates', default='../large/estimates.tab', type=str, help="estimated parameters")
     params = parser.parse_args()
     logging.getLogger().handlers = []
     logging.basicConfig(level=logging.INFO, format='%(asctime)s: %(message)s', datefmt="%Y-%m-%d %H:%M:%S")

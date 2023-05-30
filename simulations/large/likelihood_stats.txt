@@ -1,18 +1,40 @@
 PyBDEI likelihood	 is higher than PhyloDeep	 in 94.0% of cases
 	 is equal to PhyloDeep	 in 6.0% of cases
 	 is lower than PhyloDeep	 in 0.0% of cases
+	 is different from PhyloDeep	 with a p-value of 1.00974e-28
+PyBDEI likelihood	 is higher than PyBDEI (forest)	 in 4.0% of cases
+	 is equal to PyBDEI (forest)	 in 96.0% of cases
+	 is lower than PyBDEI (forest)	 in 0.0% of cases
+	 is different from PyBDEI (forest)	 with a p-value of 0.125
 PyBDEI likelihood	 is higher than PyBDEI (subtrees)	 in 35.0% of cases
 	 is equal to PyBDEI (subtrees)	 in 65.0% of cases
 	 is lower than PyBDEI (subtrees)	 in 0.0% of cases
+	 is different from PyBDEI (subtrees)	 with a p-value of 5.82077e-11
 PyBDEI likelihood	 is higher than real	 in 82.0% of cases
 	 is equal to real	 in 18.0% of cases
 	 is lower than real	 in 0.0% of cases
+	 is different from real	 with a p-value of 4.1359e-25
+PhyloDeep likelihood	 is higher than PyBDEI (forest)	 in 0.0% of cases
+	 is equal to PyBDEI (forest)	 in 6.0% of cases
+	 is lower than PyBDEI (forest)	 in 94.0% of cases
+	 is different from PyBDEI (forest)	 with a p-value of 1.00974e-28
 PhyloDeep likelihood	 is higher than PyBDEI (subtrees)	 in 1.0% of cases
 	 is equal to PyBDEI (subtrees)	 in 13.0% of cases
 	 is lower than PyBDEI (subtrees)	 in 86.0% of cases
+	 is different from PyBDEI (subtrees)	 with a p-value of 1.13737e-24
 PhyloDeep likelihood	 is higher than real	 in 16.0% of cases
 	 is equal to real	 in 13.0% of cases
 	 is lower than real	 in 71.0% of cases
+	 is different from real	 with a p-value of 1.95699e-09
+PyBDEI (forest) likelihood	 is higher than PyBDEI (subtrees)	 in 32.0% of cases
+	 is equal to PyBDEI (subtrees)	 in 67.0% of cases
+	 is lower than PyBDEI (subtrees)	 in 1.0% of cases
+	 is different from PyBDEI (subtrees)	 with a p-value of 7.91624e-09
+PyBDEI (forest) likelihood	 is higher than real	 in 79.0% of cases
+	 is equal to real	 in 20.0% of cases
+	 is lower than real	 in 1.0% of cases
+	 is different from real	 with a p-value of 1.34003e-22
 PyBDEI (subtrees) likelihood	 is higher than real	 in 56.0% of cases
 	 is equal to real	 in 35.0% of cases
 	 is lower than real	 in 9.0% of cases
+	 is different from real	 with a p-value of 2.04925e-09
