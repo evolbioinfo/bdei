@@ -55,15 +55,16 @@ rule estimate_params_p_fixed_threads:
         mem = 2000,
         name = 'estimate_parallel_{dataset}_{i}',
         qos = 'fast',
-        pattern = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.threads=$t.time')
+        pattern = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.threads=$c.time')
     singularity: "docker://evolbioinfo/bdei:v0.5"
     shell:
         """
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
         T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
 
-        for th in $(seq 1 3)
+        for c in $(seq 1 3)
         do
-            bdei_infer --p $p --nwk {input.nwk} -t $th -c 100 --log_level 0 --time_log {params.pattern} --T $T
+            echo "bdei_infer --p $p --nwk {input.nwk} -t $c -c 100 --log_level 0 --time_log {params.pattern} --T $T"
+            bdei_infer --p $p --nwk {input.nwk} -t $c -c 100 --log_level 0 --time_log {params.pattern} --T $T
         done
         """
