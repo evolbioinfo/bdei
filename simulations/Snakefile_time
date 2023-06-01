@@ -56,7 +56,7 @@ rule estimate_params_p_fixed_threads:
         name = 'estimate_parallel_{dataset}_{i}',
         qos = 'fast',
         pattern = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.threads=$t.time')
-    singularity: "docker://evolbioinfo/bdei:v0.2"
+    singularity: "docker://evolbioinfo/bdei:v0.5"
     shell:
         """
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`

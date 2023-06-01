@@ -51,7 +51,7 @@ rule estimate_p_root:
         name='estimate_{i}',
         qos='fast'
     threads: 3
-    singularity: "docker://evolbioinfo/bdei:v0.2"
+    singularity: "docker://evolbioinfo/bdei:v0.5"
     shell:
         """
         t=`more {input.log}`
@@ -89,7 +89,7 @@ rule estimate_p_bottom:
         name = 'estimate_{i}',
         qos = 'fast'
     threads: 3
-    singularity: "docker://evolbioinfo/bdei:v0.2"
+    singularity: "docker://evolbioinfo/bdei:v0.5"
     shell:
         """
         t=`more {input.log}`

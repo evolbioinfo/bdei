@@ -15,7 +15,7 @@ RUN apt update --fix-missing
 RUN apt install -y g++-10 libnlopt-cxx-dev bc python3 python3-pip python3-setuptools python3-distutils
 
 # Install pybdei
-RUN cd /usr/local/ && pip3 install --no-cache-dir numpy && pip3 install --no-cache-dir pybdei==0.4 && pip3 install --no-cache-dir pandas
+RUN cd /usr/local/ && pip3 install --no-cache-dir numpy && pip3 install --no-cache-dir pybdei==0.5 && pip3 install --no-cache-dir pandas
 
 # File Author / Maintainer
 MAINTAINER Anna Zhukova <anna.zhukova@pasteur.fr>

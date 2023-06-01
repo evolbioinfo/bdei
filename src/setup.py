@@ -32,7 +32,7 @@ setup(
     include_package_data=True,
     package_data={'pybdei': ['*.hpp'],
                   'bdei': ['*.hpp']},
-    version='0.4',
+    version='0.5',
     description='Fast and accurate epidemiological parameter estimation from phylogenetic trees with the Birth-Death Exposed-Infectious (BDEI) model.',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',

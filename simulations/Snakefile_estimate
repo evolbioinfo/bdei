@@ -34,7 +34,7 @@ rule estimate_params_p_fixed:
         name = 'estimate_{type}_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.2"
+    singularity: "docker://evolbioinfo/bdei:v0.5"
     shell:
         """
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
@@ -59,7 +59,7 @@ rule estimate_params_mu_fixed:
         name = 'estimate_{type}_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.2"
+    singularity: "docker://evolbioinfo/bdei:v0.5"
     shell:
         """
         mu=`tail -n 1 {input.log} | awk '{{ print $5 }}'`
@@ -83,7 +83,7 @@ rule estimate_params_la_fixed:
         name = 'estimate_{type}_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.2"
+    singularity: "docker://evolbioinfo/bdei:v0.5"
     shell:
         """
         la=`tail -n 1 {input.log} | awk '{{ print $6 }}'`
@@ -107,7 +107,7 @@ rule estimate_params_psi_fixed:
         name = 'estimate_{type}_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.2"
+    singularity: "docker://evolbioinfo/bdei:v0.5"
     shell:
         """
         psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
