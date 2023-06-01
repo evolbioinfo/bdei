@@ -2,6 +2,7 @@ import pandas as pd
 from ete3 import Tree
 from pastml import numeric2datetime
 from pastml.tree import DATE, read_forest, annotate_dates
+from pastml.ml import SMOOTHING_FACTOR
 
 if '__main__' == __name__:
     import argparse
