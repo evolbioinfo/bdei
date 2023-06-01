@@ -12,7 +12,6 @@ IS=range(10)
 
 rule all:
     input:
-        os.path.join(ebola_folder, 'estimates.root.tab'),
         os.path.join(ebola_folder, 'estimates.bottom.tab')
 
 

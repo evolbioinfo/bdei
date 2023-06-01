@@ -15,8 +15,7 @@ N = 10
 rule all:
     input:
         expand(os.path.join(data_dir, 'SLE', 'SLE.bottom.{i}.days.nwk'), i=range(N)),
-        expand(os.path.join(data_dir, 'SLE', 'SLE.root.{i}.days.nwk'), i=range(N)),
-        expand(os.path.join(data_dir, 'SLE', 'iTOL', 'iTOL_selected.{i}.txt'), i=range(N)),
+        os.path.join(data_dir, 'SLE', 'iTOL', 'iTOL_selected.0.txt'),
         os.path.join(data_dir, 'timetree.0.itol')
 
 
