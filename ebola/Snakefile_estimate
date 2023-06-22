@@ -6,13 +6,16 @@ import os
 
 localrules: all
 
+ruleorder: estimate_p_bottom_u_fixed > estimate_p_bottom
+
 folder = os.path.abspath(config.get("folder", '.'))
 ebola_folder = os.path.join(folder, 'data', 'SLE')
 IS=range(10)
 
 rule all:
     input:
-        os.path.join(ebola_folder, 'estimates.bottom.tab')
+        os.path.join(ebola_folder, 'estimates.bottom.tab'),
+        # os.path.join(ebola_folder, 'estimates.bottom_u.tab')
 
 
 rule count_tips:
@@ -93,21 +96,62 @@ rule estimate_p_bottom:
     shell:
         """
         t=`more {input.log}`
-        p=`echo "print($t / 13683)" | python3`
+        p=`echo "print($t / (13683 - 533))" | python3`
         
         bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
         --log {output.est} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5
         
         
-        p=`echo "print($t / (0.8 * 13683))" | python3`
+        p=`echo "print($t / (0.8 * (13683 - 533)))" | python3`
         
         bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
         --log {output.est_more} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5
         
         
-        p=`echo "print($t / (1.2 * 13683))" | python3`
+        p=`echo "print($t / (1.2 * (13683 - 533)))" | python3`
         bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
         --log {output.est_less} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5
+        """
+
+
+rule estimate_p_bottom_u_fixed:
+    '''
+    Estimate parameters on the forest, having u fixed.
+    '''
+    input:
+        nwk=os.path.join(ebola_folder,'SLE.bottom.{i}.days.nwk'),
+        log=os.path.join(ebola_folder,'SLE.bottom.{i}.days.tips'),
+    output:
+        est=os.path.join(ebola_folder,'SLE.bottom_u.{i,[0-9]+}.p=real.est'),
+        est_more=os.path.join(ebola_folder,'SLE.bottom_u.{i}.p=higher.est'),
+        est_less=os.path.join(ebola_folder,'SLE.bottom_u.{i}.p=lower.est'),
+        time=os.path.join(ebola_folder,'SLE.bottom_u.{i,[0-9]+}.p.time'),
+    params:
+        mem=2000,
+        name='estimate_{i}_u',
+        qos='fast'
+    threads: 3
+    singularity: "docker://evolbioinfo/bdei:v0.5"
+    shell:
+        """
+        t=`more {input.log}`
+        p=`echo "print($t / (13683 - 533))" | python3`
+        n=`grep ";" {input.nwk} | wc -l`
+        u=`echo "print(533 - $n)" | python3`
+
+        bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
+        --log {output.est} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5 --u $u
+
+
+        p=`echo "print($t / (0.8 * (13683 - 533)))" | python3`
+
+        bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
+        --log {output.est_more} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5 --u $u
+
+
+        p=`echo "print($t / (1.2 * (13683 - 533)))" | python3`
+        bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
+        --log {output.est_less} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5 --u $u
         """
 
 rule combine_estimates:
@@ -115,9 +159,9 @@ rule combine_estimates:
     Combine estimates.
     '''
     input:
-        nwk = expand(os.path.join(ebola_folder, 'SLE.{{type}}.{i}.days.nwk'), i=IS),
-        est = expand(os.path.join(ebola_folder, 'SLE.{{type}}.{i}.{setting}.est'), i=IS, setting=['p=' + str(_) for _ in ['real', 'lower', 'higher']]),
-        times = expand(os.path.join(ebola_folder, 'SLE.{{type}}.{i}.p.time'), i=IS),
+        nwk = expand(os.path.join(ebola_folder, 'SLE.bottom.{i}.days.nwk'), i=IS),
+        est = expand(os.path.join(ebola_folder, 'SLE.botto{m}.{i}.{setting}.est'), i=IS, setting=['p=' + str(_) for _ in ['real', 'lower', 'higher']], m=['m', 'm_u']),
+        times = expand(os.path.join(ebola_folder, 'SLE.botto{m}.{i}.p.time'), i=IS, m=['m', 'm_u']),
     output:
         tab = os.path.join(ebola_folder, 'estimates.{type}.tab'),
         time = os.path.join(ebola_folder, 'estimates.{type}.time'),
@@ -125,10 +169,9 @@ rule combine_estimates:
         mem = 2000,
         name = 'estimates',
         qos = 'fast',
-        labels = expand('{i}_{setting}', setting=['p=' + str(_) for _ in ['real', 'lower', 'higher']], i=IS),
     threads: 1
     singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
     shell:
         """
-        python3 py/summary_table.py --forests {input.nwk} --estimates {input.est} --labels {params.labels} --tab {output.tab} --times {input.times} --time {output.time}
+        python3 py/summary_table.py --forests {input.nwk} --estimates {input.est} --tab {output.tab} --times {input.times} --time {output.time}
         """

@@ -17,7 +17,6 @@ if __name__ == "__main__":
     parser.add_argument('--times', nargs='+', type=str, help="times")
     parser.add_argument('--forests', nargs='+', type=str, help="forests")
     parser.add_argument('--estimates', nargs='+', type=str, help="estimated parameters")
-    parser.add_argument('--labels', nargs='+', type=str, help="estimated labels")
     parser.add_argument('--tab', type=str, help="estimate table")
     parser.add_argument('--time', type=str, help="time table")
     params = parser.parse_args()
@@ -33,7 +32,7 @@ if __name__ == "__main__":
     time_df.loc['max', :] = M
     time_df.to_csv(params.time, sep='\t')
 
-    df = pd.DataFrame(columns=['repetition', 'sampled_tips', 'observed_trees',
+    df = pd.DataFrame(columns=['repetition', 'sampled_tips', 'observed_trees', 'hidden_trees',
                                'mu', 'mu_min', 'mu_max',
                                'lambda', 'lambda_min', 'lambda_max',
                                'psi', 'psi_min', 'psi_max',
@@ -48,12 +47,16 @@ if __name__ == "__main__":
             nwks = f.read().split(';')[:-1]
         i2stats[i] = (len(nwks), sum(len(Tree(_ + ';', format=5)) for _ in nwks))
 
-    for (file, est_label) in zip(params.estimates, params.labels):
-        rep = int(re.findall(r'\d+', os.path.basename(file))[0]) + 1
+    for file in params.estimates:
+        basename = os.path.basename(file)
+        rep = int(re.findall(r'\d+', basename)[0]) + 1
         o_trees, tips = i2stats[rep]
+        u = 'estimated' if '_u.' not in basename else 533 - o_trees
+        p = 'estimated' if '_u.' not in basename else 533 - o_trees
 
         ddf = pd.read_csv(file, sep='\t')
         estimates = ddf.loc[next(iter(ddf.index)), :]
+        est_label = '{i}.u={u}.p={p}'.format(i=rep, u=u, p=estimates[['p']])
 
         df.loc[est_label, ['mu', 'psi', 'incubation_period', 'infectious_time', 'p']] \
             = estimates[['mu', 'psi', 'incubation_period', 'infectious_time', 'p']]
@@ -65,8 +68,8 @@ if __name__ == "__main__":
                estimates['la'], *parse_CI(estimates['la_CI']),
                *parse_CI(estimates['psi_CI'])]
         df.loc[est_label,
-               ['repetition', 'sampled_tips', 'observed_trees']] \
-            = [rep, tips, o_trees]
+               ['repetition', 'sampled_tips', 'observed_trees', 'hidden_trees']] \
+            = [rep, tips, o_trees, u]
 
     df['R0_min'] = df['lambda_min'] / df['psi']
     df['R0_max'] = df['lambda_max'] / df['psi']
@@ -86,7 +89,7 @@ if __name__ == "__main__":
     df['p'] = df['p'].apply(lambda _: '{:.3f}'.format(_))
     for col in ['incubation_period', 'incubation_period_min', 'incubation_period_max']:
         df[col] = df[col].apply(lambda _: '{:.1f}'.format(_))
-    df[['repetition', 'sampled_tips', 'observed_trees',
+    df[['repetition', 'sampled_tips', 'observed_trees', 'hidden_trees',
         'p',
         'infectious_time', 'infectious_time_min', 'infectious_time_max',
         'incubation_period', 'incubation_period_min', 'incubation_period_max',
@@ -109,7 +112,8 @@ if __name__ == "__main__":
         str) + ']$ '
     df['repetition'] = ' $' + df['repetition'].apply(str) + '$ '
     df['observed_trees'] = ' $' + df['observed_trees'].apply(str) + '$ '
+    df['hidden_trees'] = ' $' + df['hidden_trees'].apply(str) + '$ '
     df['sampled_tips'] = ' $' + df['sampled_tips'].apply(str) + '$ '
 
-    df[['repetition', 'sampled_tips', 'observed_trees', 'p',
+    df[['repetition', 'sampled_tips', 'observed_trees', 'hidden_trees', 'p',
         'R0', 'incubation_period', 'infectious_time']].to_csv(params.tab + '.latex', sep='&', index=False)
