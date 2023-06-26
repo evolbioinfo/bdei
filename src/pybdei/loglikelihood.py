@@ -8,14 +8,12 @@ def main():
     """
     import argparse
 
-    parser = argparse.ArgumentParser(description="BDEI model parameter inference from phylogenetic trees.", prog='bdei_loglikelihood')
+    parser = argparse.ArgumentParser(description="BDEI model likelihood calculation on phylogenetic trees.", prog='bdei_loglikelihood')
 
     tree_group = parser.add_argument_group('tree-related arguments')
     tree_group.add_argument('--nwk', help="input tree(s) in newick format (must be rooted).",
                             type=str, required=True)
     tree_group.add_argument('-u', '--u', help="Number of unobserved trees. "
-                                              "Can be non-zero only when all the trees started at the same time "
-                                              "(i.e. T is given). "
                                               "Specify -1 if you want u to be estimated.",
                             type=int, default=-1)
 
@@ -44,10 +42,7 @@ def main():
                                        "and the last sampled tip of all the trees. "
                                        "If a zero or negative value is given, the time will be tree-specific "
                                        "and estimated as the time between the root "
-                                       "and the last sampled tip for each tree. "
-                                       "Note that if the number of unobserved trees (u) is non-zero, "
-                                       "all the trees are assumed to have started at the same time, "
-                                       "hence T must be non-negative.")
+                                       "and the last sampled tip for each tree.")
     parser.add_argument('-t', '--threads', help="number of threads for parallelization.", type=int, default=1)
     parser.add_argument('--log_level',
                         help="level of logging information "

@@ -64,6 +64,26 @@ def save_forest(forest, nwk):
             f.write('{}\n'.format(_))
 
 
+def get_T(tree):
+    """
+    Calculates the time between the tree start and the last sampled tip.
+    """
+    TIME = '_time'
+    for n in tree.traverse('preorder'):
+        if n.is_root():
+            p_time = 0
+        else:
+            p_time = getattr(n.up, TIME)
+            # delattr(n.up, TIME)
+        n.add_feature(TIME, p_time + n.dist)
+    time = 0
+    for t in tree:
+        time = max(time, getattr(t, TIME))
+        # delattr(t, TIME)
+    return time
+
+
+
 def initial_rate_guess(forest, mu=None, la=None, psi=None):
 
     fixed_rates = []
@@ -111,15 +131,21 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
 
     forest = None
 
-    if u != 0 and T <= 0:
-        raise ValueError("To take into account the number of unobserved trees (u), "
-                         "all the trees must have started at the same time, "
-                         "and a positive T must be given.")
+    if u != 0:
+        forest = parse_forest(nwk)
+        if T <= 0:
+            # calculate the median time for u
+            u_T = np.median([get_T(tree) for tree in forest])
+        else:
+            u_T = max(get_T(tree) for tree in forest)
+    else:
+        u_T = T
 
     if isinstance(start, BDEI_result):
         start = np.array([start.mu, start.la, start.psi, start.p])
     if start is None:
-        forest = parse_forest(nwk)
+        if forest is None:
+            forest = parse_forest(nwk)
         if not p or p <= 0 or p >= 1:
             rate = initial_rate_guess(forest, mu, la, psi).pop()
             starts = [[rate, rate, rate, pp] for pp in PS]
@@ -142,7 +168,7 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
 
     if pi_E is not None and pi_E >= 0:
         if pi_E > 1:
-            raise ValueError('Frequencies of pi_E should be between 0 and 1.')
+            raise ValueError('Frequency pi_E must be between 0 and 1.')
     else:
         pi_E = -1
 
@@ -188,7 +214,7 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
 
     def get_res(_nwk):
         return _pybdei.infer(f=_nwk, start=starts, ub=upper_bounds, pie=pi_E,
-                             mu=mu, la=la, psi=psi, p=p, T=T, u=u, nt=threads, nbiter=CI_repetitions,
+                             mu=mu, la=la, psi=psi, p=p, T=T, u=u, ut=u_T, nt=threads, nbiter=CI_repetitions,
                              debug=log_level, nstarts=nstarts)
 
     try:
@@ -228,18 +254,23 @@ def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0.0, u=-1, thr
             raise ValueError('All the parameters (mu, la, psi, p) must be specified, '
                              'either via dedicated arguments or via the params argument')
 
-    if u != 0 and T <= 0:
-        raise ValueError("To take into account the number of unobserved trees (u), "
-                         "all the trees must have started at the same time, "
-                         "and a positive T must be given.")
+    if u != 0:
+        forest = parse_forest(nwk)
+        if T <= 0:
+            # calculate the median time for u
+            u_T = np.median([get_T(tree) for tree in forest])
+        else:
+            u_T = max(get_T(tree) for tree in forest)
+    else:
+        u_T = T
 
     try:
-        res = _pybdei.likelihood(f=nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, u=u, nt=threads, debug=log_level)
+        res = _pybdei.likelihood(f=nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, u=u, ut=u_T, nt=threads, debug=log_level)
     except:
         temp_nwk = nwk + '.temp'
         forest = parse_forest(nwk)
         save_forest(forest, temp_nwk)
-        res = _pybdei.likelihood(f=temp_nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, u=u, nt=threads, debug=log_level)
+        res = _pybdei.likelihood(f=temp_nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, u=u, ut=u_T, nt=threads, debug=log_level)
         try:
             os.remove(temp_nwk)
         except OSError:

@@ -835,59 +835,9 @@ int oneeee = 0;
 
 double duratinit = 0, duratopt = 0, duratbuild = 0, duraterr = 0;
 
-template<class RR>
-RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, R eps = 1e-5) {
-    RR Cout = 0;
-    BDEI_pb<RR> pb(x, pie);
-    int ni = 0;
-    int n = (int) vdo.size();
-    vector<RR> CC(n);
-    assert(n);
-    {
-        thread_pool tp(size_pool);
-        for (int i = 0; i < n; ++i) {
-
-            RR *pCi = &CC[i];
-            const DataOde *pvo = &vdo[i];
-            if (pvo->internal()) ni++;
-            tp.enqueue_work([i, pvo, pCi, eps, &pb]() {
-                *pCi = (*pvo)(pb, eps);
-            });
-        }
-    }
-    Cout = 0;
-    for (int i = 0; i < n; ++i) {
-        Cout += CC[i];
-    }
-    //   exit(0);
-    int fs = n - ni;
-    int nt = ni + fs;//  nb de feuilles/ tips
-    Cout += nt * log(pb.psi * pb.p); // sampling
-    Cout += (nt - fs) * log(pb.la); // transmissions
-
-    if (u != R(0.))
-    {
-        R T = vdo[0].T;
-        RR hidden_prob = pb.piE * pb.fU(T, 0) + pb.piI * pb.fU(T, 1);
-        // estimate u if needed
-        if (u < R(0.))
-        {
-            RR u_val = R(fs) / (RR(1.) - hidden_prob) * hidden_prob;
-            Cout += u_val * log(hidden_prob);
-//            cout << "Adding " << u_val << "hidden trees" << endl;
-        }
-        else
-        {
-            Cout += u * log(hidden_prob);
-        }
-    }
-
-    return -Cout;
-}
-
 
 template<class RR>
-RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, const vector<tuple<double, int, int >> &vs, R eps = 1e-5);
+RR JCout(RR *x, R pie, R u, R ut, const vector<DataOde> &vdo, const vector<tuple<double, int, int >> &vs, R eps = 1e-5);
 
 class J_vdo {
 public:
@@ -895,6 +845,7 @@ public:
     vector<tuple<double, int, int >> *vs;
     const R *p0;
     R u;
+    R ut;
     R eps;
     R pie;
     long count;
@@ -909,13 +860,13 @@ public:
     vector<double> dir; //
     int nnewton;
 
-    J_vdo(const vector<DataOde> &vdoo, const R *pp, R piee, R uu, R epss = 1e-6, int dd = 0)
-            : vdo(vdoo), vs(0), p0(pp), pie(piee), u(uu), eps(epss), count(0), debug(dd), num(4), Jm(nan("")), xopt(), dd(0),
+    J_vdo(const vector<DataOde> &vdoo, const R *pp, R piee, R uu, R uut, R epss = 1e-6, int dd = 0)
+            : vdo(vdoo), vs(0), p0(pp), pie(piee), u(uu), ut(uut), eps(epss), count(0), debug(dd), num(4), Jm(nan("")), xopt(), dd(0),
               dsens(0), dir(), nnewton(0) { init(); }
 
-    J_vdo(const vector<DataOde> &vdoo, vector<tuple<double, int, int >> &vss, const R *pp, R piee, R uu, R epss = 1e-6,
+    J_vdo(const vector<DataOde> &vdoo, vector<tuple<double, int, int >> &vss, const R *pp, R piee, R uu, R uut, R epss = 1e-6,
           int dd = 0)
-            : vdo(vdoo), vs(&vss), p0(pp), pie(piee), u(uu), eps(epss), count(0), debug(dd), num(4), Jm(nan("")), xopt(), dd(0),
+            : vdo(vdoo), vs(&vss), p0(pp), pie(piee), u(uu), ut(uut), eps(epss), count(0), debug(dd), num(4), Jm(nan("")), xopt(), dd(0),
               dsens(0), dir(4), nnewton(0) { init(); }
 
     void set(int ddd, int dds) {
@@ -930,9 +881,9 @@ public:
         assert(dd.size() == 4);
     }
 
-    J_vdo(const vector<DataOde> &vdoo, vector<tuple<double, int, int >> &vss, const R *pp, R piee, R uu, R epss, int dd,
+    J_vdo(const vector<DataOde> &vdoo, vector<tuple<double, int, int >> &vss, const R *pp, R piee, R uu, R uut, R epss, int dd,
           double JJm, vector<double> xxopt, double JJopt)
-            : vdo(vdoo), vs(&vss), p0(pp), pie(piee), u(uu), eps(epss), count(0),
+            : vdo(vdoo), vs(&vss), p0(pp), pie(piee), u(uu), ut(uut), eps(epss), count(0),
               debug(dd), num(4), Jm(JJm), xopt(xxopt), Jopt(JJopt),
               dd(-1), dsens(-1), nnewton(0) { init(); }
 
@@ -973,7 +924,7 @@ public:
             vector<DR> dx(4);
             for (int i = 0; i < 4; ++i)
                 dx[i] = DR(x[i], dir[i]);
-            DR dCout = JCout(&dx[0], pie, u, vdo, *vs, eps);
+            DR dCout = JCout(&dx[0], pie, u, ut, vdo, *vs, eps);
             grad[0] = dCout.dval;
             Cout = dCout.val;
         } // optimum search
@@ -989,7 +940,7 @@ public:
                 else
                     for (int i = 0; i < 4; ++i)
                         dx[i] = DR(x[i], R(i == num[j]));
-                DR Cout = JCout(&dx[0], pie, u, vdo, *vs, eps);
+                DR Cout = JCout(&dx[0], pie, u, ut, vdo, *vs, eps);
                 grad[j] = Cout.dval;
                 if (ccout == 0) ccout = Cout.val;
             }
@@ -1185,7 +1136,7 @@ void mult(RR *m, RR *p) {
 }
 
 template<class RR>
-RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, const vector<tuple<double, int, int >> &vs, R eps) {
+RR JCout(RR *x, R pie, R u, R ut, const vector<DataOde> &vdo, const vector<tuple<double, int, int >> &vs, R eps) {
     RR Cout = 0;
     auto start = high_resolution_clock::now();
     BDEI_pb<RR> pb(x, pie);
@@ -1242,8 +1193,7 @@ RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, const vector<tuple<doubl
 
     if (u != R(0.))
     {
-        R T = vdo[0].T;
-        RR hidden_prob = pb.piE * pb.fU(T, 0) + pb.piI * pb.fU(T, 1);
+        RR hidden_prob = pb.piE * pb.fU(ut, 0) + pb.piI * pb.fU(ut, 1);
         // calculate u if needed
         if (u < R(0.))
         {
@@ -1263,48 +1213,6 @@ RR JCout(RR *x, R pie, R u, const vector<DataOde> &vdo, const vector<tuple<doubl
     duratopt += duration_cast<duration<double>>(end - start).count();
 
     return -Cout;
-}
-
-void showparam(R *x0, string nwk, const char *algo_name[]) {
-
-    cout << " parameters :\n";
-    cout << "   -f       file.nwk \n";
-    cout << "   -p       <value of p> \n";
-    cout << "   -psi     <value of psi> \n";
-    cout << "   -mu      <lock value of mu, (<0 unlock) > \n";
-    cout << "   -p       <lock value of p, (<0 unlock)> \n";
-    cout << "   -lambda  <lock value of lambda, , (<0 unlock)> \n";
-    cout << "   -d       <value of debug> \n";
-    cout << "   -T       <value of T> \n";
-    cout << "   -u       <value of u> \n";
-    cout << "   -eps     <value of eps> \n";
-    cout << "   -nt      <value of number of thread > \n";
-    cout << "   -nbdirerr  <value> : nb of direction to compute error bound with random direction   \n";
-    cout << "   -ferr    filename : to save bound err for graphic \n";
-    cout << "   -err     compute optimal err bound   \n";
-    cout << "   -old     previous algo \n";
-    cout << "   -mma     mma optimizer \n";
-    cout << "   -lbfgs   lbfgs optimizer \n";
-    cout << "   -direct   lbfgs optimizer \n";
-    cout << "   -start   <4 set inital values  mu,la,psi,p> \n";
-    cout << "   -ub      <4 set upper bound values  mu,la,psi,p> \n";
-    cout << "   -autostart  try to find a starting guess automaticaly \n";
-    cout << "   -loop    <value of randon case>  \n";
-
-    cout << " and or not \n";
-    cout << "     file.nwk \n";
-    cout << "\n\n Default value : \n   the optim algo  number  (0): ";
-    for (int i = 0; i < 10; ++i)
-        if (algo_name[i]) cout << i << ") " << algo_name[i] << " , ";
-        else break;
-    cout << endl;
-    cout << "   printlevel (1): 0 just print result, 1 more print,   ... " << endl;
-    vector<R> xx0(4);
-    copy(x0, x0 + 4, xx0.begin());
-    cout << "   initial start value: " << xx0 << endl;
-    cout << "   file.nwk " << nwk << endl;
-    cout << "   nbthread      :  used (in int), by default the nb of cores \n";
-    cout << endl;
 }
 
 
@@ -1423,7 +1331,7 @@ vector<tuple<double, int, int>> &getVS(vector<DataOde> &vdo, vector<tuple<double
 }
 
 
-R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R T, R u, int nt, int _debug) {
+R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R T, R u, R ut, int nt, int _debug) {
     if (nt < 1) {
         size_pool = thread::hardware_concurrency();
     } else {
@@ -1438,7 +1346,7 @@ R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R T, R u, in
 
     R predefdata[] = {mu, lambda, psi, p};
     double eps = 1e-6;
-    J_vdo jvdo(vdo, vs, predefdata, pie, u, eps, _debug >= debugVal);
+    J_vdo jvdo(vdo, vs, predefdata, pie, u, ut, eps, _debug >= debugVal);
 
     nlopt::opt opt(nlopt::LD_MMA, 1);
     vector<double> lb(1, 1e-5), ub(1, HUGE_VAL), xj(1);
@@ -1458,15 +1366,15 @@ R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R T, R u, in
 
 
 
-R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R T, R u, int nt, int _debug) {
+R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R T, R u, R ut, int nt, int _debug) {
     debug = _debug;
     Forest forest(treename);
-    return calcLikelihood(forest, mu, lambda, psi, p, pie, T, u, nt, _debug);
+    return calcLikelihood(forest, mu, lambda, psi, p, pie, T, u, ut, nt, _debug);
 }
 
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u,
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, R ut,
                 int nbdirerr, int nt, int debug_, int nStarts) {
     debug = debug_;
 
@@ -1517,7 +1425,7 @@ Solution
 
     auto start = high_resolution_clock::now();
 
-    J_vdo jvdo(vdo, vs, predefdata, pie, u, eps, debug >= debugVal);
+    J_vdo jvdo(vdo, vs, predefdata, pie, u, ut, eps, debug >= debugVal);
     nlopt::opt opt(thealgo[1], nbdata);
     vector<double> lb(nbdata, 1e-5), ub(nbdata, HUGE_VAL);
     for (int i = 0; i < nbdata; ++i)
@@ -1590,7 +1498,7 @@ Solution
         double Js = Jsol + Jerr;
         vector<double> x(4), dir(4);
         copy(sol.begin(), sol.end(), x.begin());
-        J_vdo jvdoC(vdo, vs, predefdata, pie, u, eps, debug > 1, Js, x, Jsol);
+        J_vdo jvdoC(vdo, vs, predefdata, pie, u, ut, eps, debug > 1, Js, x, Jsol);
         vector<double> errb(8, 0.);
         s = ErrRandDir(jvdoC, nbdata, num, nbdirerr, &errb[0], debug, cpu_time, nb_iter);
     } else {
@@ -1601,102 +1509,12 @@ Solution
 
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u,
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, R ut,
                 int nbdirerr, int nt, int nstarts) {
-    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, infoVal, nstarts);
+    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, ut, nbdirerr, nt, infoVal, nstarts);
 }
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr, int nt) {
-    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, nbdirerr, nt, infoVal, 1);
-}
-
-int main(int argc, const char *argv[]) {
-    string treename = "";
-    int nbdirerr = 0;
-    R T = 0;
-    R u = -1;
-    R p = -1;
-    R mu = -1;
-    R lambda = -1;
-    R psi = -1;
-    int kk = 0;
-
-    R x0[] = {0.5, .1, 0.6, 0.8}; // default starting points
-    R dub[] = {HUGE_VAL, HUGE_VAL, HUGE_VAL, 0.999999};// default upper bound
-    if (argc <= 1) {
-        cout << "\n Usage  : " << argv[0] << " *[-* ] ['nwk-filename']  \n\n";
-        cout << "\n where *[-* ] can be: \n";
-        showparam(x0, treename, algo_name);
-        return 1;
-    }
-
-    while (argc > kk + 1 && argv[kk + 1][0] == '-') {
-        if (argc > kk + 2 && strcmp(argv[kk + 1], "-f") == 0) {
-            treename = argv[kk + 2];;
-            kk += 2;
-        }
-        else if (argc > kk + 2 && strcmp(argv[kk + 1], "-p") == 0) {
-            p = atof(argv[kk + 2]);
-            kk += 2;
-        }
-        else if (argc > kk + 2 && strcmp(argv[kk + 1], "-mu") == 0) {
-            mu = atof(argv[kk + 2]);
-            kk += 2;
-        }
-        else if (argc > kk + 2 && strcmp(argv[kk + 1], "-psi") == 0) {
-            psi = atof(argv[kk + 2]);
-            kk += 2;
-        }
-        else if (argc > kk + 2 && strcmp(argv[kk + 1], "-lambda") == 0) {
-            lambda = atof(argv[kk + 2]);
-            kk += 2;
-        }
-        else if (argc > kk + 2 && strcmp(argv[kk + 1], "-la") == 0) {
-            lambda = atof(argv[kk + 2]);
-            kk += 2;
-        }
-        else if (argc > kk + 2 && strcmp(argv[kk + 1], "-T") == 0) {
-            T = atof(argv[kk + 2]);
-            kk += 2;
-        }
-        else if (argc > kk + 2 && strcmp(argv[kk + 1], "-u") == 0) {
-            u = atof(argv[kk + 2]);
-            kk += 2;
-        }
-        else if (argc > kk + 2 && strcmp(argv[kk + 1], "-nt") == 0) {
-            size_pool = atoi(argv[kk + 2]);
-            kk += 2;
-        }
-        else if (argc > kk + 2 && strcmp(argv[kk + 1], "-d") == 0) {
-            debug = atof(argv[kk + 2]);
-            kk += 2;
-        }
-        else if (argc > kk + 1 && strcmp(argv[kk + 1], "-nbdirerr") == 0) {
-            nbdirerr = atoi(argv[kk + 2]);
-            kk += 2;
-        }
-        else if (argc > kk + 5 && strcmp(argv[kk + 1], "-start") == 0) {
-            ++kk;
-            for (int i = 0; i < 4; ++i)
-                x0[i] = atof(argv[++kk]);
-
-        } else if (argc > kk + 5 && strcmp(argv[kk + 1], "-ub") == 0) {
-            ++kk;
-            for (int i = 0; i < 4; ++i)
-                dub[i] = atof(argv[++kk]);
-        } else {
-            cout << " unknown parameter  " << argv[kk + 1] << endl;
-            showparam(x0, treename, algo_name);
-            return 1;
-        }
-
-    }
-    if (argc > ++kk) treename = argv[kk];
-
-    Solution *res = inferParameters(treename, x0, dub, -1., mu, lambda, psi, p, T, u, nbdirerr, size_pool, debug, 1);
-    if (res) {
-        return 0;
-    }
-    return -1;
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, R ut, int nbdirerr, int nt) {
+    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, ut, nbdirerr, nt, infoVal, 1);
 }

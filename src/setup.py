@@ -9,7 +9,6 @@ os.environ["CC"] = "g++-10"
 os.environ["CXX"] = "g++-10"
 
 # the C++ extension module
-
 bdei_module = Extension('_pybdei',
                         sources=['pybdei/_pybdei.cpp', 'bdei/BDEI.cpp'],
                         include_dirs=['bdei', 'pybdei', np.get_include()],
@@ -32,7 +31,7 @@ setup(
     include_package_data=True,
     package_data={'pybdei': ['*.hpp'],
                   'bdei': ['*.hpp']},
-    version='0.5',
+    version='0.6',
     description='Fast and accurate epidemiological parameter estimation from phylogenetic trees with the Birth-Death Exposed-Infectious (BDEI) model.',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
@@ -48,6 +47,7 @@ setup(
                 'console_scripts': [
                     'bdei_infer = pybdei.inference:main',
                     'bdei_loglikelihood = pybdei.loglikelihood:main',
+                    'bdei_u = pybdei.u_calculator:main',
                 ]
         },
 )
