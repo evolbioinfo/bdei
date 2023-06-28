@@ -1,4 +1,4 @@
-from pybdei import get_loglikelihood, ERRORS, WARNINGS, INFO, DEBUG, PYBDEI_VERSION
+from pybdei import get_loglikelihood, ERRORS, WARNINGS, INFO, DEBUG, PYBDEI_VERSION, SAMPLING_PERIOD_LENGTH
 
 
 def main():
@@ -35,14 +35,19 @@ def main():
                                       "should be between 0 and 1. "
                                       "If not given, will be estimated from the model parameters.")
     parameter_group.add_argument('--T', default=0, type=float,
-                                  help="Total time between the tree roots and the end of the epidemic "
-                                       "(to be given if all trees start at the same time). "
+                                  help="Total time between the tree roots and the end of the sampling period. "
                                        "If a positive value is given, the total time will be set to the maximum "
                                        "between this value and the maximal time between the start "
                                        "and the last sampled tip of all the trees. "
                                        "If a zero or negative value is given, the time will be tree-specific "
                                        "and estimated as the time between the root "
-                                       "and the last sampled tip for each tree.")
+                                       "and the last sampled tip for each tree. "
+                                       "In the latter case, one can additionally annotate each tree root "
+                                       "with a feature '{sp}' (e.g. '(a:2,b:3):1[&&NHX:{sp}=5];' "
+                                       "is a tree with two tips, a and b, and the tree-specific time annotated to 5): "
+                                       "then the tree-specific time will be set to the maximum "
+                                       "between the annotated value and the time between the root "
+                                       "and the last sampled tip of this tree.".format(sp=SAMPLING_PERIOD_LENGTH))
     parser.add_argument('-t', '--threads', help="number of threads for parallelization.", type=int, default=1)
     parser.add_argument('--log_level',
                         help="level of logging information "

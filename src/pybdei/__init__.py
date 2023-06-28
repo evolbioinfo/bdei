@@ -5,6 +5,8 @@ import _pybdei
 import numpy as np
 from ete3 import Tree
 
+SAMPLING_PERIOD_LENGTH = 'T'
+
 ERRORS = 0
 WARNINGS = 1
 INFO = 2
@@ -43,24 +45,26 @@ def parse_tree(nwk):
     return tree
 
 
-def parse_forest(nwk):
-    res = []
+def parse_forest(nwk, T=0.):
+    forest = []
     with open(nwk, 'r') as f:
-        res = [parse_tree(_.strip('\n') + ';') for _ in f.read().split(';')[:-1]]
-    if not res:
+        forest = [parse_tree(_.strip('\n') + ';') for _ in f.read().split(';')[:-1]]
+    if not forest:
         raise ValueError('Could not find any trees in your input file (check the newick format): {}'.format(nwk))
-    return res
+    Ts = [max(get_T(tree), float(getattr(tree, SAMPLING_PERIOD_LENGTH, 0))) for tree in forest]
+    max_T = max(*Ts, T)
+    for (tree, tree_T) in zip(forest, Ts):
+        tree.add_feature(SAMPLING_PERIOD_LENGTH, tree_T if T <= 0 else max_T)
+    u_T = np.median(Ts) if T <= 0 else max_T
 
-
-def save_tree(tree, nwk):
-    with open(nwk, 'w+') as f:
-        f.write('{}\n'.format(tree.write(format=5, format_root_node=True)))
+    return forest, u_T
 
 
 def save_forest(forest, nwk):
     with open(nwk, 'w+') as f:
         for tree in forest:
-            _ = tree.write(format=5, format_root_node=True)
+            _ = tree.write(format=5, format_root_node=True, features=[SAMPLING_PERIOD_LENGTH])\
+                .replace('&&NHX:{}='.format(SAMPLING_PERIOD_LENGTH), '')
             f.write('{}\n'.format(_))
 
 
@@ -126,26 +130,14 @@ def initial_rate_guess(forest, mu=None, la=None, psi=None):
 
 
 def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
-          mu=-1, la=-1, psi=-1, p=-1, T=0.0, u=-1, CI_repetitions=0, threads=1, log_level=INFO, **kwargs):
+          mu=-1, la=-1, psi=-1, p=-1, T=0., u=-1, CI_repetitions=0, threads=1, log_level=INFO, **kwargs):
     """Infer BDEI parameters from a phylogenetic tree."""
 
-    forest = None
-
-    if u != 0:
-        forest = parse_forest(nwk)
-        if T <= 0:
-            # calculate the median time for u
-            u_T = np.median([get_T(tree) for tree in forest])
-        else:
-            u_T = max(get_T(tree) for tree in forest)
-    else:
-        u_T = T
+    forest, u_T = parse_forest(nwk, T=T)
 
     if isinstance(start, BDEI_result):
         start = np.array([start.mu, start.la, start.psi, start.p])
     if start is None:
-        if forest is None:
-            forest = parse_forest(nwk)
         if not p or p <= 0 or p >= 1:
             rate = initial_rate_guess(forest, mu, la, psi).pop()
             starts = [[rate, rate, rate, pp] for pp in PS]
@@ -212,23 +204,15 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
     nstarts = len(starts)
     starts = np.reshape(starts, (4 * nstarts,))
 
-    def get_res(_nwk):
-        return _pybdei.infer(f=_nwk, start=starts, ub=upper_bounds, pie=pi_E,
-                             mu=mu, la=la, psi=psi, p=p, T=T, u=u, ut=u_T, nt=threads, nbiter=CI_repetitions,
-                             debug=log_level, nstarts=nstarts)
-
+    temp_nwk = nwk + '.temp'
+    save_forest(forest, temp_nwk)
+    res = _pybdei.infer(f=temp_nwk, start=starts, ub=upper_bounds, pie=pi_E,
+                        mu=mu, la=la, psi=psi, p=p, u=u, ut=u_T, nt=threads, nbiter=CI_repetitions,
+                        debug=log_level, nstarts=nstarts)
     try:
-        res = get_res(nwk)
-    except:
-        temp_nwk = nwk + '.temp'
-        if forest is None:
-            forest = parse_forest(nwk)
-        save_forest(forest, temp_nwk)
-        res = get_res(temp_nwk)
-        try:
-            os.remove(temp_nwk)
-        except OSError:
-            pass
+        os.remove(temp_nwk)
+    except OSError:
+        pass
 
     return BDEI_result(mu=res[0], la=res[1], psi=res[2], p=res[3],
                        mu_CI=(res[4], res[5]) if CI_repetitions > 0 else None,
@@ -239,7 +223,7 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
            BDEI_time(CPU_time=res[13], iterations=res[14])
 
 
-def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0.0, u=-1, threads=1, log_level=INFO, params=None, **kwargs):
+def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0., u=-1, threads=1, log_level=INFO, params=None, **kwargs):
     """Calculate loglikelihood for given BDEI parameters from a phylogenetic tree."""
     if params is not None:
         if isinstance(params, BDEI_result):
@@ -254,26 +238,15 @@ def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0.0, u=-1, thr
             raise ValueError('All the parameters (mu, la, psi, p) must be specified, '
                              'either via dedicated arguments or via the params argument')
 
-    if u != 0:
-        forest = parse_forest(nwk)
-        if T <= 0:
-            # calculate the median time for u
-            u_T = np.median([get_T(tree) for tree in forest])
-        else:
-            u_T = max(get_T(tree) for tree in forest)
-    else:
-        u_T = T
+    forest, u_T = parse_forest(nwk, T=T)
 
+    temp_nwk = nwk + '.temp'
+    save_forest(forest, temp_nwk)
+    res = _pybdei.likelihood(f=temp_nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, u=u, ut=u_T, nt=threads, debug=log_level)
     try:
-        res = _pybdei.likelihood(f=nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, u=u, ut=u_T, nt=threads, debug=log_level)
-    except:
-        temp_nwk = nwk + '.temp'
-        forest = parse_forest(nwk)
-        save_forest(forest, temp_nwk)
-        res = _pybdei.likelihood(f=temp_nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, T=T, u=u, ut=u_T, nt=threads, debug=log_level)
-        try:
-            os.remove(temp_nwk)
-        except OSError:
-            pass
+        os.remove(temp_nwk)
+    except OSError:
+        pass
+
     return res
 

@@ -654,14 +654,25 @@ struct Forest {
 };
 
 R SetTime(TreeBranch *b, R t, int &nt, int &ni) {
+    /* Sets the time at the beginning of the branch.
+    The time is tree-specific, i.e. the time at the start of the root branch is 0 */
+
     if (!b) return t;
     b->t = t;
     R T = t + b->value;// T branchement
     R Tb = T;
-    if (!b->b[0]) ++nt;// nb of tips (leaves)
-    else ++ni;
-    for (int i = 0; i < 2; ++i)
-        T = max(T, SetTime(b->b[i], Tb, nt, ni));
+    if (!b->b[0])
+    {
+        ++nt;// nb of tips (leaves)
+    }
+    else
+    {
+        ++ni;
+        for (int i = 0; i < 2; ++i)
+        {
+            T = max(T, SetTime(b->b[i], Tb, nt, ni));
+        }
+    }
     return T;
 }
 
@@ -706,12 +717,11 @@ TreeBranch *Read(ifstream &f, int i) {
         // read branch length into p->value
         f >> p->value;
         c = f.peek();
-        // there might be some additional metadata provided after the branch length in square brackets, let's ignore it
+        // we expect the time T for this branch to be provided after the branch length in square brackets
         if (c == '[') {
-            while ((c != ']') && (c != EOF)) {
-                // read internal node's name and ignore it
-                c = f.get();
-            }
+            c = f.get();
+            f >> p->T;
+            c = f.get();
             if (c != ']') {
                 throw std::invalid_argument("Invalid newick format of the input tree(s)");
             }
@@ -736,8 +746,7 @@ Forest::Forest(string fn)
 
         if (p) {
             f.push_back(p);
-            p->T = SetTime(p, 0, nt, ni);
-            T = max(T, p->T);
+            SetTime(p, 0, nt, ni);
             if (p->value) {
                 // have not yet read the ;
                 if (ff.get() != ';') {
@@ -755,7 +764,7 @@ Forest::Forest(string fn)
     if (debug >= infoVal)
     {
         cout << "Observed forest contains "  << f.size() << " tree(s) with "
-        << nt << " tips and " << ni << " internal nodes, T=" << T << endl;
+        << nt << " tips and " << ni << " internal nodes" << endl;
     }
 }
 
@@ -810,8 +819,10 @@ inline ostream &operator<<(ostream &cout, const DataOde &d) {
 }
 
 void SetDataOde(TreeBranch *b, R T, vector<DataOde> &vdo, int lvl) {
-    if (lvl == 0) //racine ...
+    if (lvl == 0)
+    { //racine ...
         vdo.push_back(DataOde(T, b->value));
+    }
     if (b->internal()) {
         R t = T - (b->t + b->value); // de
         vdo.push_back(DataOde(t, b->b[0]->value, b->b[1]->value));
@@ -820,10 +831,6 @@ void SetDataOde(TreeBranch *b, R T, vector<DataOde> &vdo, int lvl) {
     }
 }
 
-void SetDataOde(Forest &f, vector<DataOde> &vdo, R T) {
-    for (int i = 0; i < f.size(); ++i)
-        SetDataOde(f[i], T, vdo, 0);
-}
 
 void SetDataOde(Forest &f, vector<DataOde> &vdo) {
     for (int i = 0; i < f.size(); ++i) {
@@ -1281,15 +1288,8 @@ Solution *ErrRandDir(J_vdo &jvdoC, int nnum, int *num, int ndir, double *derr, i
                         cpu_time + duration.count() / 1000.f, nb_iter + jvdoC.count);
 }
 
-vector<DataOde> &getForestDataODE(Forest &forest, R T, vector<DataOde> &vdo, int _debug) {
-    if (T <= 0) {
-        if (_debug >= infoVal)  cout << "Using tree-specific sampling periods (between tree start and tree's last sampled tip)." << endl;
-        SetDataOde(forest, vdo);
-    } else {
-        T = max(T, forest.T);
-        if (_debug >= infoVal)  cout << "Using global time " << T << " for the sampling period." << endl;
-        SetDataOde(forest, vdo, T);
-    }
+vector<DataOde> &getForestDataODE(Forest &forest, vector<DataOde> &vdo, int _debug) {
+    SetDataOde(forest, vdo);
     return vdo;
 }
 
@@ -1331,7 +1331,7 @@ vector<tuple<double, int, int>> &getVS(vector<DataOde> &vdo, vector<tuple<double
 }
 
 
-R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R T, R u, R ut, int nt, int _debug) {
+R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R u, R ut, int nt, int _debug) {
     if (nt < 1) {
         size_pool = thread::hardware_concurrency();
     } else {
@@ -1339,7 +1339,7 @@ R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R T, R u, R 
     }
 
     vector<DataOde> vdo;
-    vdo = getForestDataODE(forest, T, vdo, _debug);
+    vdo = getForestDataODE(forest, vdo, _debug);
 
     vector<tuple<double, int, int >> vs;
     vs = getVS(vdo, vs);
@@ -1366,15 +1366,15 @@ R calcLikelihood(Forest &forest, R mu, R lambda, R psi, R p, R pie, R T, R u, R 
 
 
 
-R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R T, R u, R ut, int nt, int _debug) {
+R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R u, R ut, int nt, int _debug) {
     debug = _debug;
     Forest forest(treename);
-    return calcLikelihood(forest, mu, lambda, psi, p, pie, T, u, ut, nt, _debug);
+    return calcLikelihood(forest, mu, lambda, psi, p, pie, u, ut, nt, _debug);
 }
 
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, R ut,
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R u, R ut,
                 int nbdirerr, int nt, int debug_, int nStarts) {
     debug = debug_;
 
@@ -1397,7 +1397,7 @@ Solution
 
     Forest forest(treename);
     vector<DataOde> vdo;
-    vdo = getForestDataODE(forest, T, vdo, debug_);
+    vdo = getForestDataODE(forest, vdo, debug_);
 
     vector<tuple<double, int, int >> vs;
     vs = getVS(vdo, vs);
@@ -1407,8 +1407,7 @@ Solution
 
     if (debug >= debugVal)
         cout << "forest file: " << treename << endl;
-//             << ", mu  = " << mu << ", lambda = " << lambda << ", psi = " << psi << ", p = " << p
-//             << ", T = " << T << endl;
+//             << ", mu  = " << mu << ", lambda = " << lambda << ", psi = " << psi << ", p = " << p << endl;
     R predefdata[] = {mu, lambda, psi, p};
     vector<double> xsol(4); // to store the solution ...
     int nbdata = 0;
@@ -1509,12 +1508,12 @@ Solution
 
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, R ut,
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R u, R ut,
                 int nbdirerr, int nt, int nstarts) {
-    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, ut, nbdirerr, nt, infoVal, nstarts);
+    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, u, ut, nbdirerr, nt, infoVal, nstarts);
 }
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, R ut, int nbdirerr, int nt) {
-    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, T, u, ut, nbdirerr, nt, infoVal, 1);
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R u, R ut, int nbdirerr, int nt) {
+    return inferParameters(treename, x0, dub, pie, mu, lambda, psi, p, u, ut, nbdirerr, nt, infoVal, 1);
 }

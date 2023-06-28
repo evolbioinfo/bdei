@@ -2,7 +2,8 @@ import numpy as np
 from scipy.integrate import odeint
 from treesimulator.mtbd_models import BirthDeathExposedInfectiousModel
 
-from pybdei import parse_forest, PYBDEI_VERSION, ERRORS, WARNINGS, INFO, DEBUG, BDEI_result, get_T
+from pybdei import parse_forest, PYBDEI_VERSION, ERRORS, WARNINGS, INFO, DEBUG, BDEI_result, get_T, \
+    SAMPLING_PERIOD_LENGTH
 
 RTOL = 100 * np.finfo(np.float64).eps
 N_U_STEPS = int(1e7)
@@ -71,12 +72,12 @@ def get_u(mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0.0, f=0, nwk=None, log_level=I
         if nwk is None:
             raise ValueError('Either the forest file (via nwk argument), '
                              'or both the number of observed trees (f) and the total time (T) must be specified.')
-        forest = parse_forest(nwk)
+        forest, u_T = parse_forest(nwk, T)
         f = len(forest)
         if log_level >= INFO:
             print('The input forest contains {} trees.'.format(f))
         if unknown_T:
-            T = max(get_T(tree) for tree in forest)
+            T = u_T
     if log_level >= INFO:
         print('T is set to {}.'.format(T))
 
@@ -104,7 +105,7 @@ def main():
         prog='bdei_u')
 
     tree_group = parser.add_argument_group('tree-related arguments')
-    tree_group.add_argument('--nwk', help="Input tree(s) in newick format "
+    tree_group.add_argument('--nwk', help="Observed tree(s) in newick format "
                                           "to calculate the total time T and the number of observed trees. "
                                           "If not given, --f and --T must be specified.",
                             type=str, required=False, default=None)
@@ -129,11 +130,21 @@ def main():
                                       "should be between 0 and 1. "
                                       "If not given, will be estimated from the model parameters.")
     parameter_group.add_argument('--T', default=0, type=float,
-                                  help="Total time between the tree roots and the end of the epidemic "
-                                       "(assuming all the trees started at the same time). "
-                                       "If a non-positive value is given, "
-                                       "the total time will be set to the maximal time between the start "
-                                       "and the last sampled tip of all the trees specified as --nwk.")
+                                  help="Total time between the hidden tree roots and the end of the sampling period. "
+                                       "If a positive value is given and the observed forest is specified as --nwk, "
+                                       "the total time will be set to the maximum "
+                                       "between this value and the maximal time between the start "
+                                       "and the last sampled tip of all the trees. "
+                                       "If a zero or negative value is given, the forest must be specified as --nwk: "
+                                       "The time will be set to the median of observed tree-specific times. "
+                                       "Observed tree-specific times are estimated as the time between the root "
+                                       "and the last sampled tip for each tree. "
+                                       "In the latter case, one can additionally annotate each tree root "
+                                       "with a feature '{sp}' (e.g. '(a:2,b:3):1[&&NHX:{sp}=5];' "
+                                       "is a tree with two tips, a and b, and the tree-specific time annotated to 5): "
+                                       "then the tree-specific time will be set to the maximum "
+                                       "between the annotated value and the time between the root "
+                                       "and the last sampled tip of this tree.".format(sp=SAMPLING_PERIOD_LENGTH))
     parser.add_argument('--log_level',
                         help="level of logging information "
                              "(the lower, the less information will be printed to the output). "
