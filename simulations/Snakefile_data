@@ -18,7 +18,6 @@ REPETITIONS = list(range(100))
 
 rule all:
     input:
-        expand(os.path.join(sim_folder, 'large', 'introductions', 'introduction.{i}.nwk'), i=range(100)),
         expand(os.path.join(sim_folder, 'large', 'subepidemics', 'subepidemic.{i}.nwk'), i=range(100)),
         expand(os.path.join(sim_folder, 'large', 'forests', 'forest.{i}.nwk'), i=range(100)),
         expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.nwk'), i=range(100), dataset=DATASETS),
@@ -94,29 +93,6 @@ rule prepare_forests_large:
         """
         python3 py/cut_tree.py --in_nwk {input.nwk} --in_log {input.log} --out_nwk {output.nwk} --out_log {output.log} \
         --threshold 0.25
-        """
-
-
-rule prepare_subemidemics_large:
-    '''
-    Extract multiple introductions from the tree.
-    '''
-    input:
-        nwk = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.nwk'),
-        log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
-    output:
-        nwk = os.path.join(sim_folder, 'large', 'introductions', 'introduction.{i}.nwk'),
-        log = os.path.join(sim_folder, 'large', 'introductions', 'introduction.{i}.log'),
-    params:
-        mem = 2000,
-        name = 'introduction_{i}',
-        qos = 'fast'
-    threads: 1
-    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
-    shell:
-        """
-        python3 py/cut_subepidemics.py --in_nwk {input.nwk} --in_log {input.log} --out_nwk {output.nwk} --out_log {output.log} \
-        --min_T 0 --max_T 1 --min_tips 5000 
         """
 
 rule simulate:
