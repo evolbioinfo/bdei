@@ -6,16 +6,13 @@ import os
 
 localrules: all
 
-ruleorder: estimate_p_bottom_u_fixed > estimate_p_bottom
-
 folder = os.path.abspath(config.get("folder", '.'))
 ebola_folder = os.path.join(folder, 'data', 'SLE')
 IS=range(10)
 
 rule all:
     input:
-        os.path.join(ebola_folder, 'estimates.bottom.tab'),
-        # os.path.join(ebola_folder, 'estimates.bottom_u.tab')
+        os.path.join(ebola_folder, 'estimates.tab'),
 
 
 rule count_tips:
@@ -37,45 +34,7 @@ rule count_tips:
         python3 py/count_tips.py --in_nwk {input} --out_log {output}
         """
 
-rule estimate_p_root:
-    '''
-    Estimate parameters on the forest.
-    '''
-    input:
-        nwk=os.path.join(ebola_folder,'SLE.root.{i}.days.nwk'),
-        log=os.path.join(ebola_folder,'SLE.root.{i}.days.tips'),
-    output:
-        est=os.path.join(ebola_folder,'SLE.root.{i,[0-9]+}.p=real.est'),
-        est_more=os.path.join(ebola_folder,'SLE.root.{i}.p=higher.est'),
-        est_less=os.path.join(ebola_folder,'SLE.root.{i}.p=lower.est'),
-        time=os.path.join(ebola_folder,'SLE.root.{i,[0-9]+}.p.time'),
-    params:
-        mem=2000,
-        name='estimate_{i}',
-        qos='fast'
-    threads: 3
-    singularity: "docker://evolbioinfo/bdei:v0.5"
-    shell:
-        """
-        t=`more {input.log}`
-        p=`echo "print($t/533)" | python3`
-
-        bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
-        --log {output.est} --time_log {output.time} --T 1 --upper_bounds 1 100 100 0.5
-
-
-        p=`echo "print($t / (0.8 * 533))" | python3`
-
-        bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
-        --log {output.est_more} --time_log {output.time} --T 1 --upper_bounds 1 100 100 0.5
-
-
-        p=`echo "print($t / (1.2 * 533))" | python3`
-        bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
-        --log {output.est_less} --time_log {output.time} --T 1 --upper_bounds 1 100 100 0.5
-        """
-
-rule estimate_p_bottom:
+rule estimate_p:
     '''
     Estimate parameters on the forest.
     '''
@@ -83,15 +42,17 @@ rule estimate_p_bottom:
         nwk = os.path.join(ebola_folder, 'SLE.bottom.{i}.days.nwk'),
         log = os.path.join(ebola_folder, 'SLE.bottom.{i}.days.tips'),
     output:
-        est = os.path.join(ebola_folder, 'SLE.bottom.{i,[0-9]+}.p=real.est'),
-        est_more = os.path.join(ebola_folder, 'SLE.bottom.{i}.p=higher.est'),
-        est_less = os.path.join(ebola_folder, 'SLE.bottom.{i}.p=lower.est'),
-        time = os.path.join(ebola_folder, 'SLE.bottom.{i,[0-9]+}.p.time'),
+        est = os.path.join(ebola_folder, 'SLE.u=estimated.{i,[0-9]+}.p=real.est'),
+        est_more = os.path.join(ebola_folder, 'SLE.u=estimated.{i}.p=higher.est'),
+        est_less = os.path.join(ebola_folder, 'SLE.u=estimated.{i}.p=lower.est'),
+        time = os.path.join(ebola_folder, 'SLE.u=estimated.{i,[0-9]+}.p=real.time'),
+        time_more=os.path.join(ebola_folder,'SLE.u=estimated.{i,[0-9]+}.p=higher.time'),
+        time_less=os.path.join(ebola_folder,'SLE.u=estimated.{i,[0-9]+}.p=lower.time'),
     params:
         mem = 2000,
         name = 'estimate_{i}',
         qos = 'fast'
-    threads: 3
+    threads: 2
     singularity: "docker://evolbioinfo/bdei:v0.5"
     shell:
         """
@@ -99,22 +60,22 @@ rule estimate_p_bottom:
         p=`echo "print($t / (13683 - 533))" | python3`
         
         bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
-        --log {output.est} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5
+        --log {output.est} --time_log {output.time} --T 0 --upper_bounds 1 50 50 0.5
         
         
         p=`echo "print($t / (0.8 * (13683 - 533)))" | python3`
         
         bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
-        --log {output.est_more} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5
+        --log {output.est_more} --time_log {output.time_more} --T 0 --upper_bounds 1 50 50 0.5
         
         
         p=`echo "print($t / (1.2 * (13683 - 533)))" | python3`
         bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
-        --log {output.est_less} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5
+        --log {output.est_less} --time_log {output.time_less} --T 0 --upper_bounds 1 50 50 0.5
         """
 
 
-rule estimate_p_bottom_u_fixed:
+rule estimate_p_u_fixed:
     '''
     Estimate parameters on the forest, having u fixed.
     '''
@@ -122,15 +83,17 @@ rule estimate_p_bottom_u_fixed:
         nwk=os.path.join(ebola_folder,'SLE.bottom.{i}.days.nwk'),
         log=os.path.join(ebola_folder,'SLE.bottom.{i}.days.tips'),
     output:
-        est=os.path.join(ebola_folder,'SLE.bottom_u.{i,[0-9]+}.p=real.est'),
-        est_more=os.path.join(ebola_folder,'SLE.bottom_u.{i}.p=higher.est'),
-        est_less=os.path.join(ebola_folder,'SLE.bottom_u.{i}.p=lower.est'),
-        time=os.path.join(ebola_folder,'SLE.bottom_u.{i,[0-9]+}.p.time'),
+        est=os.path.join(ebola_folder,'SLE.u=fixed.{i,[0-9]+}.p=real.est'),
+        est_more=os.path.join(ebola_folder,'SLE.u=fixed.{i}.p=higher.est'),
+        est_less=os.path.join(ebola_folder,'SLE.u=fixed.{i}.p=lower.est'),
+        time=os.path.join(ebola_folder,'SLE.u=fixed.{i,[0-9]+}.p=real.time'),
+        time_more=os.path.join(ebola_folder,'SLE.u=fixed.{i,[0-9]+}.p=higher.time'),
+        time_less=os.path.join(ebola_folder,'SLE.u=fixed.{i,[0-9]+}.p=lower.time'),
     params:
         mem=2000,
         name='estimate_{i}_u',
         qos='fast'
-    threads: 3
+    threads: 2
     singularity: "docker://evolbioinfo/bdei:v0.5"
     shell:
         """
@@ -140,18 +103,59 @@ rule estimate_p_bottom_u_fixed:
         u=`echo "print(533 - $n)" | python3`
 
         bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
-        --log {output.est} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5 --u $u
+        --log {output.est} --time_log {output.time} --T 0 --upper_bounds 1 50 50 0.5 --u $u
 
 
         p=`echo "print($t / (0.8 * (13683 - 533)))" | python3`
 
         bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
-        --log {output.est_more} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5 --u $u
+        --log {output.est_more} --time_log {output.time_more} --T 0 --upper_bounds 1 50 50 0.5 --u $u
 
 
         p=`echo "print($t / (1.2 * (13683 - 533)))" | python3`
         bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
-        --log {output.est_less} --time_log {output.time} --T 1 --upper_bounds 1 50 50 0.5 --u $u
+        --log {output.est_less} --time_log {output.time_less} --T 0 --upper_bounds 1 50 50 0.5 --u $u
+        """
+
+
+rule estimate_p_u_zero:
+    '''
+    Estimate parameters on the forest, having u fixed to zero.
+    '''
+    input:
+        nwk=os.path.join(ebola_folder,'SLE.bottom.{i}.days.nwk'),
+        log=os.path.join(ebola_folder,'SLE.bottom.{i}.days.tips'),
+    output:
+        est=os.path.join(ebola_folder,'SLE.u=0.{i,[0-9]+}.p=real.est'),
+        est_more=os.path.join(ebola_folder,'SLE.u=0.{i}.p=higher.est'),
+        est_less=os.path.join(ebola_folder,'SLE.u=0.{i}.p=lower.est'),
+        time=os.path.join(ebola_folder,'SLE.u=0.{i,[0-9]+}.p=real.time'),
+        time_more=os.path.join(ebola_folder,'SLE.u=0.{i,[0-9]+}.p=higher.time'),
+        time_less=os.path.join(ebola_folder,'SLE.u=0.{i,[0-9]+}.p=lower.time'),
+    params:
+        mem=2000,
+        name='estimate_{i}_u',
+        qos='fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.5"
+    shell:
+        """
+        t=`more {input.log}`
+        p=`echo "print($t / (13683 - 533))" | python3`
+
+        bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
+        --log {output.est} --time_log {output.time} --T 0 --upper_bounds 1 50 50 0.5 --u 0
+
+
+        p=`echo "print($t / (0.8 * (13683 - 533)))" | python3`
+
+        bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
+        --log {output.est_more} --time_log {output.time_more} --T 0 --upper_bounds 1 50 50 0.5 --u 0
+
+
+        p=`echo "print($t / (1.2 * (13683 - 533)))" | python3`
+        bdei_infer --p $p --threads {threads} -c 100 --nwk {input.nwk} \
+        --log {output.est_less} --time_log {output.time_less} --T 0 --upper_bounds 1 50 50 0.5 --u 0
         """
 
 rule combine_estimates:
@@ -160,11 +164,15 @@ rule combine_estimates:
     '''
     input:
         nwk = expand(os.path.join(ebola_folder, 'SLE.bottom.{i}.days.nwk'), i=IS),
-        est = expand(os.path.join(ebola_folder, 'SLE.botto{m}.{i}.{setting}.est'), i=IS, setting=['p=' + str(_) for _ in ['real', 'lower', 'higher']], m=['m', 'm_u']),
-        times = expand(os.path.join(ebola_folder, 'SLE.botto{m}.{i}.p.time'), i=IS, m=['m', 'm_u']),
+        est = expand(os.path.join(ebola_folder, 'SLE.u={u}.{i}.p={p}.est'), i=IS,
+            p=['real', 'lower', 'higher'],
+            u=['fixed', 'estimated', '0']),
+        times = expand(os.path.join(ebola_folder, 'SLE.u={u}.{i}.p={p}.time'), i=IS,
+            p=['real', 'lower', 'higher'],
+            u=['fixed', 'estimated', '0']),
     output:
-        tab = os.path.join(ebola_folder, 'estimates.{type}.tab'),
-        time = os.path.join(ebola_folder, 'estimates.{type}.time'),
+        tab = os.path.join(ebola_folder, 'estimates.tab'),
+        time = os.path.join(ebola_folder, 'estimates.time'),
     params:
         mem = 2000,
         name = 'estimates',

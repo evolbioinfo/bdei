@@ -167,89 +167,89 @@ rule pastml_full_tree:
         """
         pastml -t {input.nwk} -d {input.csv} -s , -c country -v --work_dir {params.wd}
         """
-
-rule resolve:
-    '''
-    Resolves polytomies in the tree.
-    '''
-    input:
-        tree = os.path.join(data_dir, 'tree.nwk'),
-        timetree = os.path.join(data_dir, 'pastml', 'named.tree_timetree.nwk'),
-        mp = os.path.join(data_dir, 'pastml', 'marginal_probabilities.character_country.model_F81.tab'),
-        length = os.path.join(data_dir, 'aln.length'),
-    output:
-        tree = os.path.join(data_dir, 'rooted.tree.{i,[0-9]+}.nwk'),
-    threads: 1
-    singularity: "docker://evolbioinfo/pastml:v1.9.40"
-    params:
-        mem = 10000,
-        name = 'resolve.{i}',
-        qos = 'fast'
-    shell:
-        """
-        n=`head {input.length}`
-
-        python3 py/root_tree.py --in_nwk {input.tree} --in_nex {input.timetree} --out_nwk {output.tree} --aln_len $n --mp {input.mp}
-        """
-
-rule date_lsd2_resolved:
-    '''
-    Dates a tree.
-    Minimal branch length is set to 1 hour = 1/365/24=0.0001
-    '''
-    input:
-        tree = os.path.join(data_dir, 'rooted.{tree}.nwk'),
-        length = os.path.join(data_dir, 'aln.length'),
-        dates = os.path.join(data_dir, 'lsd2.dates'),
-    output:
-        tree = os.path.join(data_dir, 'time{tree}.nexus'),
-        log = os.path.join(data_dir, 'time{tree}.log'),
-        rd = os.path.join(data_dir, 'time{tree}.rootdate'),
-    threads: 1
-    singularity: "docker://evolbioinfo/lsd2:v2.4.1"
-    params:
-        mem = 120000,
-        name = 'lsd2',
-        wd = os.path.join(data_dir, 'time{tree}.wd'),
-        qos = 'fast'
-    shell:
-        """
-        n=`head {input.length}`
-
-        echo "lsd2 -i {input.tree} -d {input.dates} -s $n -o {params.wd} -f 1000 -u 0.0001 -l 0"
-
-        lsd2 -i {input.tree} -d {input.dates} -s 18996 -o {params.wd} -f 1000 -u 0.0001 -l 0
-
-        mv "{params.wd}.date.nexus" "{output.tree}"
-        mv "{params.wd}" "{output.log}"
-        rm -rf {params.wd}*
-
-        echo `grep "], tMRCA" {output.log} | sed -e 's/rate [0-9\\.e+-]\\+ \\[[0-9\\.e+-]\\+; [0-9\\.e+-]\\+\\], tMRCA //g' \
-        | sed -e 's/ \\[[0-9\\.e+-]\\+; [0-9\\.e+-]\\+\\], objective function [0-9\\.e+-]\\+//g'` > {output.rd}
-        """
-
-rule pastml:
-    '''
-    Reconstructs ancestral states.
-    '''
-    input:
-        nwk = os.path.join(data_dir, 'timetree.{i}.nexus'),
-        csv = os.path.join(data_dir, 'metadata.csv'),
-    output:
-        nwk = os.path.join(data_dir, 'pastml', '{i}', 'named.tree_timetree.{i}.nwk'),
-        mp = os.path.join(data_dir, 'pastml', '{i}', 'marginal_probabilities.character_country.model_F81.tab'),
-        pars = os.path.join(data_dir, 'pastml', '{i}', 'params.character_country.method_MPPA.model_F81.tab'),
-    params:
-        mem = 1000,
-        name = 'years2days',
-        qos = 'fast',
-        wd = os.path.join(data_dir, 'pastml', '{i}')
-    threads: 1
-    singularity: "docker://evolbioinfo/pastml:v1.9.40"
-    shell:
-        """
-        pastml -t {input.nwk} -d {input.csv} -s , -c country -v --work_dir {params.wd}
-        """
+#
+# rule resolve:
+#     '''
+#     Resolves polytomies in the tree.
+#     '''
+#     input:
+#         tree = os.path.join(data_dir, 'tree.nwk'),
+#         timetree = os.path.join(data_dir, 'pastml', 'named.tree_timetree.nwk'),
+#         mp = os.path.join(data_dir, 'pastml', 'marginal_probabilities.character_country.model_F81.tab'),
+#         length = os.path.join(data_dir, 'aln.length'),
+#     output:
+#         tree = os.path.join(data_dir, 'rooted.tree.{i,[0-9]+}.nwk'),
+#     threads: 1
+#     singularity: "docker://evolbioinfo/pastml:v1.9.40"
+#     params:
+#         mem = 10000,
+#         name = 'resolve.{i}',
+#         qos = 'fast'
+#     shell:
+#         """
+#         n=`head {input.length}`
+#
+#         python3 py/root_tree.py --in_nwk {input.tree} --in_nex {input.timetree} --out_nwk {output.tree} --aln_len $n --mp {input.mp}
+#         """
+#
+# rule date_lsd2_resolved:
+#     '''
+#     Dates a tree.
+#     Minimal branch length is set to 1 hour = 1/365/24=0.0001
+#     '''
+#     input:
+#         tree = os.path.join(data_dir, 'rooted.{tree}.nwk'),
+#         length = os.path.join(data_dir, 'aln.length'),
+#         dates = os.path.join(data_dir, 'lsd2.dates'),
+#     output:
+#         tree = os.path.join(data_dir, 'time{tree}.nexus'),
+#         log = os.path.join(data_dir, 'time{tree}.log'),
+#         rd = os.path.join(data_dir, 'time{tree}.rootdate'),
+#     threads: 1
+#     singularity: "docker://evolbioinfo/lsd2:v2.4.1"
+#     params:
+#         mem = 120000,
+#         name = 'lsd2',
+#         wd = os.path.join(data_dir, 'time{tree}.wd'),
+#         qos = 'fast'
+#     shell:
+#         """
+#         n=`head {input.length}`
+#
+#         echo "lsd2 -i {input.tree} -d {input.dates} -s $n -o {params.wd} -f 1000 -u 0.0001 -l 0"
+#
+#         lsd2 -i {input.tree} -d {input.dates} -s 18996 -o {params.wd} -f 1000 -u 0.0001 -l 0
+#
+#         mv "{params.wd}.date.nexus" "{output.tree}"
+#         mv "{params.wd}" "{output.log}"
+#         rm -rf {params.wd}*
+#
+#         echo `grep "], tMRCA" {output.log} | sed -e 's/rate [0-9\\.e+-]\\+ \\[[0-9\\.e+-]\\+; [0-9\\.e+-]\\+\\], tMRCA //g' \
+#         | sed -e 's/ \\[[0-9\\.e+-]\\+; [0-9\\.e+-]\\+\\], objective function [0-9\\.e+-]\\+//g'` > {output.rd}
+#         """
+#
+# rule pastml:
+#     '''
+#     Reconstructs ancestral states.
+#     '''
+#     input:
+#         nwk = os.path.join(data_dir, 'timetree.{i}.nexus'),
+#         csv = os.path.join(data_dir, 'metadata.csv'),
+#     output:
+#         nwk = os.path.join(data_dir, 'pastml', '{i}', 'named.tree_timetree.{i}.nwk'),
+#         mp = os.path.join(data_dir, 'pastml', '{i}', 'marginal_probabilities.character_country.model_F81.tab'),
+#         pars = os.path.join(data_dir, 'pastml', '{i}', 'params.character_country.method_MPPA.model_F81.tab'),
+#     params:
+#         mem = 1000,
+#         name = 'years2days',
+#         qos = 'fast',
+#         wd = os.path.join(data_dir, 'pastml', '{i}')
+#     threads: 1
+#     singularity: "docker://evolbioinfo/pastml:v1.9.40"
+#     shell:
+#         """
+#         pastml -t {input.nwk} -d {input.csv} -s , -c country -v --work_dir {params.wd}
+#         """
 
 rule years2days:
     '''

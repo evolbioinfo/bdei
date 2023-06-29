@@ -49,10 +49,9 @@ if __name__ == "__main__":
 
     for file in params.estimates:
         basename = os.path.basename(file)
-        rep = int(re.findall(r'\d+', basename)[0]) + 1
+        rep = int(re.findall(r'[.]u=[\w\d]+[.](\d+)', basename)[0]) + 1
         o_trees, tips = i2stats[rep]
-        u = 'estimated' if '_u.' not in basename else 533 - o_trees
-        p = 'estimated' if '_u.' not in basename else 533 - o_trees
+        u = re.findall(r'[.]u=([\w\d]+)[.]', basename)[0]
 
         ddf = pd.read_csv(file, sep='\t')
         estimates = ddf.loc[next(iter(ddf.index)), :]
@@ -78,7 +77,7 @@ if __name__ == "__main__":
     df['infectious_time_min'] = 1 / df['psi_max']
     df['infectious_time_max'] = 1 / df['psi_min']
 
-    df.sort_values(by=['repetition', 'p'], inplace=True)
+    df.sort_values(by=['repetition', 'hidden_trees', 'p'], inplace=True)
 
     for col in ['mu', 'mu_min', 'mu_max',
                 'lambda', 'lambda_min', 'lambda_max',
