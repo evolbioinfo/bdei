@@ -75,8 +75,8 @@ rule combine_estimates_large:
     Combine estimates.
     '''
     input:
-        log = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.log'), i=REPETITIONS, type=['tree', 'cluster', 'forest']),
-        est_p = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.est'), i=REPETITIONS, type=['tree', 'cluster', 'forest']),
+        log = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.log'), i=REPETITIONS, type=['tree', 'subepidemic', 'forest']),
+        est_p = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.est'), i=REPETITIONS, type=['tree', 'subepidemic', 'forest']),
         est_dl = os.path.join(sim_folder, 'large', 'CNN_CBLV.csv'),
     output:
         tab = os.path.join(sim_folder, 'large', 'estimates.tab'),

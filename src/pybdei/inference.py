@@ -1,4 +1,4 @@
-from pybdei import infer, ERRORS, DEBUG, WARNINGS, INFO, PYBDEI_VERSION, SAMPLING_PERIOD_LENGTH
+from pybdei import infer, ERRORS, DEBUG, WARNINGS, INFO, PYBDEI_VERSION, SAMPLING_PERIOD_LENGTH, MIN, MEDIAN, MEAN, MAX
 
 
 def main():
@@ -14,7 +14,7 @@ def main():
     tree_group.add_argument('--nwk', help="Input tree(s) in newick format (must be rooted).",
                             type=str, required=True)
     tree_group.add_argument('-u', '--u', help="Number of unobserved trees. "
-                                              "Specify -1 if you want u to be estimated.",
+                                              "By default (-1) is estimated.",
                             type=int, default=-1)
 
     parameter_group = parser.add_argument_group('parameter-related arguments')
@@ -56,6 +56,11 @@ def main():
                                        "then the tree-specific time will be set to the maximum "
                                        "between the annotated value and the time between the root "
                                        "and the last sampled tip of this tree.".format(sp=SAMPLING_PERIOD_LENGTH))
+
+    parameter_group.add_argument('--u_policy', default=MEAN, choices=[MIN, MEDIAN, MEAN, MAX],
+                                  help="How to estimate the time for unobserved trees "
+                                       "in case of tree-specific observed tree times. "
+                                       "By default, the mean of tree-specific observed times is taken.")
 
     result_group = parser.add_argument_group('output-related arguments')
     result_group.add_argument('-c', '--CI_repetitions', default=0,

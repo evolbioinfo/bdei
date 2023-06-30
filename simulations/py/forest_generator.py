@@ -43,7 +43,7 @@ if __name__ == "__main__":
         u = 0
         forest = []
         while total_n_tips < params.min_tips:
-            max_time = random_float(min_T, max_T)
+            max_time = random_float(min_T, max_T) if min_T < max_T else min_T
             tree = simulate_tree_gillespie(model, max_time=max_time)
             if tree:
                 total_n_tips += len(tree)

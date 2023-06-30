@@ -98,8 +98,9 @@ if __name__ == "__main__":
 
     for est in params.estimated:
         i = int(re.findall(r'[0-9]+', est)[0])
+        tree_type = re.findall(r'([\w_]+).[0-9]+', est)[0]
         ddf = pd.read_csv(est, sep='\t')
-        est_label = 'PyBDEI{}'.format('' if 'tree' in est else ' (forest)' if 'forest' in est else ' (subtrees)')
+        est_label = 'PyBDEI{}'.format('' if 'tree' == tree_type else ' ({})'.format(tree_type))
         estimates = ddf.loc[next(iter(ddf.index)), :]
         df_i = '{}.{}'.format(i, est_label)
         df.loc[df_i, ['mu', 'psi', 'R_naught', 'incubation_period', 'infectious_time']] \

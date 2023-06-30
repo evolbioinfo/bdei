@@ -18,8 +18,7 @@ REPETITIONS = list(range(100))
 
 rule all:
     input:
-        expand(os.path.join(sim_folder, 'large', 'subepidemics', 'subepidemic.{i}.nwk'), i=range(100)),
-        expand(os.path.join(sim_folder, 'large', 'forests', 'forest.{i}.nwk'), i=range(100)),
+        expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.nwk'), i=range(100), type=['subepidemic', 'forest']),
         expand(os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.nwk'), i=range(100), dataset=DATASETS),
 
 
@@ -95,15 +94,15 @@ rule prepare_forests_large:
         --threshold 0.25
         """
 
-rule simulate:
+rule simulate_multiple_introductions:
     '''
     Simulate a forest for given parameters.
     '''
     input:
         log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
     output:
-        nwk = os.path.join(sim_folder, 'large', 'subepidemics', 'subepidemic.{i}.nwk'),
-        log = os.path.join(sim_folder, 'large', 'subepidemics', 'subepidemic.{i}.log'),
+        nwk = os.path.join(sim_folder, 'large', 'introductions', 'introduction.{i}.nwk'),
+        log = os.path.join(sim_folder, 'large', 'introductions', 'introduction.{i}.log'),
     params:
         mem = 2000,
         name = 'simulate_{i}',
@@ -115,4 +114,27 @@ rule simulate:
         python py/forest_generator.py --min_tips 5000 --max_tips 10000 \
         --in_log {input.log} --nwk {output.nwk} --out_log {output.log} \
         --min_T 0 --max_T 1
+        """
+
+
+rule simulate_policy_change:
+    '''
+    Simulate a forest for given parameters.
+    '''
+    input:
+        log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
+    output:
+        nwk = os.path.join(sim_folder, 'large', 'policy_changes', 'policy_change.{i}.nwk'),
+        log = os.path.join(sim_folder, 'large', 'policy_changes', 'policy_change.{i}.log'),
+    params:
+        mem = 2000,
+        name = 'simulate_{i}',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/treesimulator:v0.1.6"
+    shell:
+        """
+        python py/forest_generator.py --min_tips 5000 --max_tips 10000 \
+        --in_log {input.log} --nwk {output.nwk} --out_log {output.log} \
+        --min_T 0.75 --max_T 0.75
         """

@@ -16,9 +16,16 @@ PYBDEI_VERSION = 0.4
 
 PS = (0.1, 0.4, 0.7)
 
+MAX, MIN, MEDIAN, MEAN = 'max', 'min', 'median', 'mean'
+
+
 BDEI_result = namedtuple('BDEI_result', ['mu', 'la', 'psi', 'p', 'mu_CI', 'la_CI', 'psi_CI', 'p_CI',
                                          'R_naught', 'incubation_period', 'infectious_time'])
 BDEI_time = namedtuple('BDEI_time', ['CPU_time', 'iterations'])
+
+
+def get_temp_file_name(prefix):
+    return '{}.{}.temp'.format(prefix, np.random.random())
 
 
 def parse_tree(nwk):
@@ -45,7 +52,7 @@ def parse_tree(nwk):
     return tree
 
 
-def parse_forest(nwk, T=0.):
+def parse_forest(nwk, T=0., u_policy=MEAN):
     forest = []
     with open(nwk, 'r') as f:
         forest = [parse_tree(_.strip('\n') + ';') for _ in f.read().split(';')[:-1]]
@@ -55,7 +62,14 @@ def parse_forest(nwk, T=0.):
     max_T = max(*Ts, T)
     for (tree, tree_T) in zip(forest, Ts):
         tree.add_feature(SAMPLING_PERIOD_LENGTH, tree_T if T <= 0 else max_T)
-    u_T = np.median(Ts) if T <= 0 else max_T
+    u_T = max_T
+    if T <= 0:
+        if u_policy == MEDIAN:
+            u_T = np.median(Ts)
+        if u_policy == MEAN:
+            u_T = np.mean(Ts)
+        if u_policy == MIN:
+            u_T = np.min(Ts)
 
     return forest, u_T
 
@@ -130,10 +144,10 @@ def initial_rate_guess(forest, mu=None, la=None, psi=None):
 
 
 def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
-          mu=-1, la=-1, psi=-1, p=-1, T=0., u=-1, CI_repetitions=0, threads=1, log_level=INFO, **kwargs):
+          mu=-1, la=-1, psi=-1, p=-1, T=0., u=-1, CI_repetitions=0, threads=1, log_level=INFO, u_policy=MEAN, **kwargs):
     """Infer BDEI parameters from a phylogenetic tree."""
 
-    forest, u_T = parse_forest(nwk, T=T)
+    forest, u_T = parse_forest(nwk, T=T, u_policy=u_policy)
 
     if isinstance(start, BDEI_result):
         start = np.array([start.mu, start.la, start.psi, start.p])
@@ -204,7 +218,7 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
     nstarts = len(starts)
     starts = np.reshape(starts, (4 * nstarts,))
 
-    temp_nwk = nwk + '.temp'
+    temp_nwk = get_temp_file_name(nwk)
     save_forest(forest, temp_nwk)
     res = _pybdei.infer(f=temp_nwk, start=starts, ub=upper_bounds, pie=pi_E,
                         mu=mu, la=la, psi=psi, p=p, u=u, ut=u_T, nt=threads, nbiter=CI_repetitions,
@@ -223,7 +237,8 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
            BDEI_time(CPU_time=res[13], iterations=res[14])
 
 
-def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0., u=-1, threads=1, log_level=INFO, params=None, **kwargs):
+def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0., u=-1, threads=1, log_level=INFO, params=None,
+                      u_policy=MEAN, **kwargs):
     """Calculate loglikelihood for given BDEI parameters from a phylogenetic tree."""
     if params is not None:
         if isinstance(params, BDEI_result):
@@ -238,9 +253,9 @@ def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0., u=-1, thre
             raise ValueError('All the parameters (mu, la, psi, p) must be specified, '
                              'either via dedicated arguments or via the params argument')
 
-    forest, u_T = parse_forest(nwk, T=T)
+    forest, u_T = parse_forest(nwk, T=T, u_policy=u_policy)
 
-    temp_nwk = nwk + '.temp'
+    temp_nwk = get_temp_file_name(nwk)
     save_forest(forest, temp_nwk)
     res = _pybdei.likelihood(f=temp_nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, u=u, ut=u_T, nt=threads, debug=log_level)
     try:

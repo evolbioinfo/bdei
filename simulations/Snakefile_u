@@ -1,0 +1,178 @@
+import os
+
+# To run locally:
+# snakemake --snakefile Snakefile_u --keep-going --cores 7 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
+
+# To run on bioevo (change shakemake activation below if you are not Anna ;) :
+# source ~/.bashrc && conda activate snakemake && module load apptainer && cd /pasteur/zeus/projets/p01/Evolbioinfo/users/azhukova/projects/bdei/simulations
+# snakemake --snakefile Snakefile_estimate --keep-going --cores 1 --use-singularity --singularity-prefix $HOME/.singularity --singularity-args "-B /pasteur" --cluster "sbatch -c {threads} -o logs/{params.name}.log -e logs/{params.name}.log --mem {params.mem} -p bioevo --qos={params.qos}  -A bioevo -J {params.name}" --jobs 300
+
+
+localrules: all
+
+ruleorder: estimate_zero > estimate_zero_forest > estimate > estimate_forest
+
+os.makedirs('logs', exist_ok=True)
+sim_folder = os.path.abspath('.')
+REPETITIONS = list(range(100))
+
+
+
+rule all:
+    input:
+        expand(os.path.join(sim_folder, 'large', 'errors_u.{type}.svg'), type=['subepidemic', 'forest'])
+
+rule estimate:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, '{dataset}', '{type,subepidemic|introduction}s', '{type}.{i}.{policy}.est'),
+    params:
+        mem = 2000,
+        name = 'estimate_{i}',
+        qos = 'fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.5"
+    shell:
+        """
+        p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
+        cat {input.log}
+
+        bdei_infer --p $p -t {threads} --nwk {input.nwk} --log {output.est} --u_policy {wildcards.policy}
+        """
+
+
+rule estimate_zero:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, '{dataset}', '{type,subepidemic|introduction}s', '{type}.{i}.zero.est'),
+    params:
+        mem = 2000,
+        name = 'estimate_{i}',
+        qos = 'fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.5"
+    shell:
+        """
+        p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
+        cat {input.log}
+
+        bdei_infer --p $p -t {threads} --nwk {input.nwk} --log {output.est} --u 0
+        """
+
+rule estimate_forest:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, '{dataset}', '{type,forest|policy_change}s', '{type}.{i}.max.est'),
+    params:
+        mem = 2000,
+        name = 'estimate_{i}',
+        qos = 'fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.5"
+    shell:
+        """
+        p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
+        cat {input.log}
+
+        bdei_infer --p $p -t {threads} --nwk {input.nwk} --log {output.est} --T 0.0001
+        """
+
+
+rule estimate_zero_forest:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, '{dataset}', '{type,forest|policy_change}s', '{type}.{i}.zero.est'),
+    params:
+        mem = 2000,
+        name = 'estimate_{i}',
+        qos = 'fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.5"
+    shell:
+        """
+        p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
+        cat {input.log}
+
+        bdei_infer --p $p -t {threads} --nwk {input.nwk} --log {output.est} --u 0 --T 0.0001
+        """
+
+rule combine_estimates:
+    '''
+    Combine estimates.
+    '''
+    input:
+        log = expand(os.path.join(sim_folder, '{{dataset}}', '{{type}}s', '{{type}}.{i}.log'), i=REPETITIONS),
+        est = expand(os.path.join(sim_folder, '{{dataset}}', '{{type}}s', '{{type}}.{i}.{policy}.est'), i=REPETITIONS, policy=['mean', 'min', 'max', 'median', 'zero']),
+    output:
+        tab = os.path.join(sim_folder, '{dataset}', 'estimates_u.{type,subepidemic|introduction}.tab'),
+    params:
+        mem = 2000,
+        name = 'estimates',
+        qos = 'fast',
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/summary_table_u.py --real {input.log} --estimated {input.est} --tab {output.tab}
+        """
+
+rule combine_estimates_forest:
+    '''
+    Combine estimates.
+    '''
+    input:
+        log = expand(os.path.join(sim_folder, '{{dataset}}', '{{type}}s', '{{type}}.{i}.log'), i=REPETITIONS),
+        est = expand(os.path.join(sim_folder, '{{dataset}}', '{{type}}s', '{{type}}.{i}.{policy}.est'), i=REPETITIONS, policy=['max', 'zero']),
+    output:
+        tab = os.path.join(sim_folder, '{dataset}', 'estimates_u.{type,forest|policy_change}.tab'),
+    params:
+        mem = 2000,
+        name = 'estimates',
+        qos = 'fast',
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/summary_table_u.py --real {input.log} --estimated {input.est} --tab {output.tab}
+        """
+
+
+rule plot_errors:
+    '''
+    Plots the errors.
+    '''
+    input:
+        tab = os.path.join(sim_folder, '{dataset}', 'estimates_u.{type}.tab'),
+    output:
+        pdf = os.path.join(sim_folder, '{dataset}', 'errors_u.{type}.svg'),
+        tab = os.path.join(sim_folder, '{dataset}', 'errors_u.{type}.tab'),
+    params:
+        mem = 2000,
+        name = 'errors',
+        qos = 'fast'
+    threads: 1
+    singularity: "docker://evolbioinfo/python-evol:v3.6richer.1"
+    shell:
+        """
+        python3 py/plot_error_u.py --estimates {input.tab} --tab {output.tab} --pdf {output.pdf}
+        """

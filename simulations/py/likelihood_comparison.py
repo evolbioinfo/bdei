@@ -31,7 +31,8 @@ if __name__ == "__main__":
         type2lk = {}
         for type in ALL_TYPES:
             mu, la, psi = df.loc['{}_{}'.format(type, i), ['mu', 'lambda', 'psi']]
-            type2lk[type] = get_loglikelihood(nwk=params.tree_pattern.format(i), mu=mu, la=la, psi=psi, p=p)
+            type2lk[type] = get_loglikelihood(nwk=params.tree_pattern.format(i), mu=mu, la=la, psi=psi, p=p,
+                                              T=1 if ('subepidemic' not in type) and ('introduction' not in type) else 0)
             index.append(i)
         best_lk = max(type2lk.values())
         for _ in ALL_TYPES:

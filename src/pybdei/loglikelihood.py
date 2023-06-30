@@ -1,4 +1,5 @@
-from pybdei import get_loglikelihood, ERRORS, WARNINGS, INFO, DEBUG, PYBDEI_VERSION, SAMPLING_PERIOD_LENGTH
+from pybdei import get_loglikelihood, ERRORS, WARNINGS, INFO, DEBUG, PYBDEI_VERSION, SAMPLING_PERIOD_LENGTH, MAX, MIN, \
+    MEDIAN, MEAN
 
 
 def main():
@@ -48,6 +49,11 @@ def main():
                                        "then the tree-specific time will be set to the maximum "
                                        "between the annotated value and the time between the root "
                                        "and the last sampled tip of this tree.".format(sp=SAMPLING_PERIOD_LENGTH))
+    parameter_group.add_argument('--u_policy', default=MEAN, choices=[MIN, MEDIAN, MEAN, MAX],
+                                  help="How to estimate the time for unobserved trees "
+                                       "in case of tree-specific observed tree times. "
+                                       "By default, the mean of tree-specific observed times is taken.")
+
     parser.add_argument('-t', '--threads', help="number of threads for parallelization.", type=int, default=1)
     parser.add_argument('--log_level',
                         help="level of logging information "

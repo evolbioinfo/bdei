@@ -10,14 +10,18 @@ import os
 
 localrules: all
 
+ruleorder: estimate_params_p_fixed_subep > estimate_params_p_fixed
+
 os.makedirs('logs', exist_ok=True)
 sim_folder = os.path.abspath('.')
 REPETITIONS = list(range(100))
 
+
+
 rule all:
     input:
         expand(os.path.join(sim_folder, 'medium', 'trees', 'tree.{i}.est'), i=REPETITIONS),
-        expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.est'), i=REPETITIONS, type=['forest', 'cluster', 'tree']),
+        expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.est'), i=REPETITIONS, type=['forest', 'subepidemic', 'tree']),
         expand(os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.est_{param}'), i=REPETITIONS, param=['mu', 'la', 'psi']),
 
 rule estimate_params_p_fixed:
@@ -38,11 +42,34 @@ rule estimate_params_p_fixed:
     shell:
         """
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
-        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
         cat {input.log}
 
-        echo "bdei_infer --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est} --T $T"
-        bdei_infer --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est} --T $T
+        bdei_infer --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est} --T 0.0001
+        """
+
+
+rule estimate_params_p_fixed_subep:
+    '''
+    Estimate parameters.
+    '''
+    input:
+        nwk = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.nwk'),
+        log = os.path.join(sim_folder, '{dataset}', '{type}s', '{type}.{i}.log'),
+    output:
+        est = os.path.join(sim_folder, '{dataset}', '{type,subepidemic|introduction}s', '{type}.{i}.est'),
+    params:
+        mem = 2000,
+        name = 'estimate_{i}',
+        qos = 'fast'
+    threads: 2
+    singularity: "docker://evolbioinfo/bdei:v0.5"
+    shell:
+        """
+        p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
+        cat {input.log}
+
+        echo "bdei_infer --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est} --T 0"
+        bdei_infer --p $p -c 100 -t {threads} --nwk {input.nwk} --log {output.est} --T 0
         """
 
 rule estimate_params_mu_fixed:
