@@ -3,6 +3,8 @@ import os
 # To run locally:
 # snakemake --snakefile Snakefile_estimate --keep-going --cores 7 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
 
+# To visualise the pipeline:
+# snakemake --snakefile Snakefile_estimate --dag | dot -Tsvg > pipeline_estimate.svg
 
 localrules: all
 
@@ -53,7 +55,7 @@ rule estimate_p:
         name = 'estimate_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.5"
+    singularity: "docker://evolbioinfo/bdei:v0.7"
     shell:
         """
         t=`more {input.log}`
@@ -94,7 +96,7 @@ rule estimate_p_u_fixed:
         name='estimate_{i}_u',
         qos='fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.5"
+    singularity: "docker://evolbioinfo/bdei:v0.7"
     shell:
         """
         t=`more {input.log}`
@@ -137,7 +139,7 @@ rule estimate_p_u_zero:
         name='estimate_{i}_u',
         qos='fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.5"
+    singularity: "docker://evolbioinfo/bdei:v0.7"
     shell:
         """
         t=`more {input.log}`

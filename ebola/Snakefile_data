@@ -158,7 +158,7 @@ rule pastml_full_tree:
         pars = os.path.join(data_dir, 'pastml', 'params.character_country.method_MPPA.model_F81.tab'),
     params:
         mem = 1000,
-        name = 'years2days',
+        name = 'pastml_full',
         qos = 'fast',
         wd = os.path.join(data_dir, 'pastml')
     threads: 1
@@ -241,7 +241,7 @@ rule pastml:
         pars = os.path.join(data_dir, 'pastml', '{i}', 'params.character_country.method_MPPA.model_F81.tab'),
     params:
         mem = 1000,
-        name = 'years2days',
+        name = 'pastml',
         qos = 'fast',
         wd = os.path.join(data_dir, 'pastml', '{i}')
     threads: 1
@@ -289,28 +289,6 @@ rule SLE_forest:
         """
         python3 py/SLE_forest.py --in_tree {input.nwk} --out_forest {output.nwk} --tab {input.mp} --date 2014.5780821917808 
         """
-
-
-rule SLE_root:
-    '''
-    Extracts a root tree of SLE finished on July,31 2014
-    '''
-    input:
-        nwk = os.path.join(data_dir, 'pastml', '{i}', 'named.tree_timetree.{i}.nwk'),
-        mp = os.path.join(data_dir, 'pastml', '{i}', 'marginal_probabilities.character_country.model_F81.tab'),
-    output:
-        nwk = os.path.join(data_dir, 'SLE', 'SLE.root.{i,[0-9]+}.nwk'),
-    params:
-        mem = 1000,
-        name = 'SLE.{i}',
-        qos = 'fast'
-    threads: 1
-    singularity: "docker://evolbioinfo/pastml:v1.9.40"
-    shell:
-        """
-        python3 py/SLE_root_tree.py --in_tree {input.nwk} --out_root_tree {output.nwk} --tab {input.mp} --date 2014.5780821917808 
-        """
-
 
 rule pastml_itol:
     '''
