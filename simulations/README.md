@@ -21,9 +21,10 @@ To produce medium trees, Voznica _et al._ generated 10 000 trees with 200 − 50
 with the parameter values sampled uniformly at random within the following boundaries: 
  * incubation period 1/µ ∈ [0.2, 50]
  * basic reproductive number R<sub>0</sub> = λ/ψ ∈ [1, 5]
- * infectious period ψ ∈ [1, 10]. 
+ * infectious period ψ ∈ [1, 10]
+ * sampling probability ρ ∈ [0.01, 1[.
 
-Then randomly selected 100 out of those 10 000 trees to evaluate them with the gold standard method, BEAST2. 
+Then randomly selected 100 out of those 10 000 trees to evaluate them with the standard Bayesian method, BEAST2. 
 
 For 100 large tree generation, the same parameter values as for the 100 medium ones were used, 
 but the tree size varied between 5000 and 10 000 tips.
@@ -32,20 +33,38 @@ As the BDEI model requires one of the parameters to be fixed in order to become 
 ρ was fixed to the real value.
 
 ### Large forest data set
-PhyloDeep's maximal pre-trained tree size is 500, 
-however for larger trees it estimates BDEI parameters by extracting the largest non-intersecting set of subtrees 
-of sizes covered by the pre-trained set (50-500 tips), estimating parameters on each of the subtrees independently, 
-and averaging each parameter's value over the subtrees (weighted by subtree sizes). 
-To compare our method's performance on the forest of such subtrees, 
-we generated a large forest data set by dissecting each large tree into subtrees with Phylo Deep:
- * forest of subtrees for each large trees: [cluster.[0-99].nwk](large/clusters)
- * real parameter values for such forests: [cluster.[0-99].log](large/clusters)
+To evaluate PyBDEI performance on forests, we additionally generated two types of
+forests for the large data set. 
+
+#### Type 1 forests (e.g. health policy change)
+The first type of forests was produced by cutting the oldest
+(i.e., closest to the root) 25% of each full tree, and keeping the forest of bottom-75%
+subtrees (in terms of time). We hence obtained 100 forests representing sup-epidemics that
+all started at the same time. They can be found in [large/forests](large/forests) folder.
+
+#### Type 2 forests (e.g. multiple introductions to a country)
+The second type of forests represented epidemics that started with multiple
+introductions happening at different times. To generate them we 
+1. took the parameter values Θ<sub>i</sub> corresponding to each tree _Tree_<sub>i</sub> in the large dataset
+(i ∈ {1, . . . , 100})
+2. calculated the time T<sub>i</sub> between the start of the tree _Tree_<sub>i</sub> and the time
+of its last sampled tip
+3. kept 
+   1. uniformly drawing a time T<sub>i,j</sub> ∈ [0, Ti], and
+   2. generating a (potentially hidden) tree _Tree_<sub>i,j</sub> 
+under parameters Θ<sub>i</sub> till reaching the time T<sub>i,j</sub>. 
+
+Steps (3.i) and (3.ii) were repeated till the total number of sampled tips 
+in the generated trees reached at least 5 000: tips(_Tree_<sub>i,j</sub>) ⩾ 5 000. 
+The resulting forest F<sub>i</sub> included those of the trees _Tree_<sub>i,j</sub> that contained at least one sampled tip (i.e., observed trees). 
+These forests can be found in [large/subepidemics](large/subepidemics) folder.
 
 ## Data preparation pipeline 
 
 The [Snakemake_data](Snakemake_data) file contains 
 a Snakemake [[Köster *et al.*, 2012](https://doi.org/10.1093/bioinformatics/bts480)] pipeline 
-that splits the trees into separate files (one per tree), and generates the large forest data set.
+that splits the trees into separate files (one per tree), and generates the large forest data sets.
+
 
 It can be rerun as:
 ```bash
@@ -63,11 +82,15 @@ on the trees and forests of the medium and large data sets.
 The [Snakemake_viz](Snakemake_viz) file contains a Snakemake pipeline that visualized the results.
 
 
-The estimated parameters for fixed ρ can be found in 
-the [medium/estimates.tab](medium/estimates.tab) and [large/estimates.tab](large/estimates.tab) tables, 
+The [Snakemake_u](Snakemake_u) file contains a Snakemake pipeline that assesses different setting 
+of the u parameter (number of hidden trees) on the simulated forests.
 
-The estimated parameters, with each of the parameters separately fixed to the real value, can be found in 
-the [medium/estimates_tree_mu_la_psi_p.tab](medium/estimates_tree_mu_la_psi_p.tab) and [large/estimates_tree_mu_la_psi_p.tab](large/estimates_tree_mu_la_psi_p.tab) tables..
+
+The estimated parameters for fixed ρ can be found in 
+the [medium/estimates.tab](medium/estimates.tab) and [large/estimates.tab](large/estimates.tab) tables.
+
+The estimated parameters, with each of the parameters separately fixed to the real value, 
+can be found in the [large/estimates_tree_mu_la_psi_p.tab](large/estimates_tree_mu_la_psi_p.tab) tables.
 
 It can be rerun as:
 ```bash
@@ -76,10 +99,16 @@ snakemake --snakefile Snakefile_viz --keep-going --use-singularity --singularity
 ```
 
 #### Relative errors on the medium data set
-![Medium data set errors](medium/errors.png)
+![Medium data set errors](medium/errors.svg)
 
 #### Relative errors on the large data set
-![Medium data set errors](large/errors.png)
+![Large data set errors](large/errors.svg)
+
+#### Relative errors with different u settings the large forests of type 1
+![Large data set errors with different u](large/errors_u.forest.svg)
+
+#### Relative errors with different u settings the large forests of type 2
+![Large data set errors with different u](large/errors_u.subepidemic.svg)
 
 
 ## Time pipeline 

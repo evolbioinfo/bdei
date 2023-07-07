@@ -43,35 +43,6 @@ rule prepare_phylodeep:
         python3 py/split_trees.py --in_nwk {input.nwk} --in_log {input.log} --out_nwks {output.nwk} --out_logs {output.log}
         """
 
-rule prepare_clusters_large:
-    '''
-    Splits the tree with PhyloDeep's cluster picker.
-    '''
-    input:
-        nwk = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.nwk'),
-        log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
-    output:
-        nwk = os.path.join(sim_folder, 'large', 'clusters', 'cluster.{i}.nwk'),
-        log = os.path.join(sim_folder, 'large', 'clusters', 'cluster.{i}.log'),
-    params:
-        mem = 2000,
-        name = 'cluster_{i}',
-        qos = 'fast'
-    threads: 1
-    singularity: "docker://evolbioinfo/phylodeep:v0.2.61"
-    shell:
-        """
-        subtree_picker -i {input.nwk} -o {output.nwk} -m 50 -M 500
-
-        mu=`tail -n 1 {input.log} | awk '{{ print $5 }}'`
-        la=`tail -n 1 {input.log} | awk '{{ print $6 }}'`
-        psi=`tail -n 1 {input.log} | awk '{{ print $7 }}'`
-        p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
-        f=`grep -o ';' {output.nwk}  | wc -l`
-        echo "tips	f	u	T	mu	la	psi	p" > {output.log}
-        echo "NA	$f	0	0	$mu	$la	$psi	$p" >> {output.log}
-        """
-
 rule prepare_forests_large:
     '''
     Cuts large trees removing the top X%.
@@ -101,8 +72,8 @@ rule simulate_multiple_introductions:
     input:
         log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
     output:
-        nwk = os.path.join(sim_folder, 'large', 'introductions', 'introduction.{i}.nwk'),
-        log = os.path.join(sim_folder, 'large', 'introductions', 'introduction.{i}.log'),
+        nwk = os.path.join(sim_folder, 'large', 'subepidemics', 'subepidemic.{i}.nwk'),
+        log = os.path.join(sim_folder, 'large', 'subepidemics', 'subepidemic.{i}.log'),
     params:
         mem = 2000,
         name = 'simulate_{i}',
@@ -116,25 +87,3 @@ rule simulate_multiple_introductions:
         --min_T 0 --max_T 1
         """
 
-
-rule simulate_policy_change:
-    '''
-    Simulate a forest for given parameters.
-    '''
-    input:
-        log = os.path.join(sim_folder, 'large', 'trees', 'tree.{i}.log'),
-    output:
-        nwk = os.path.join(sim_folder, 'large', 'policy_changes', 'policy_change.{i}.nwk'),
-        log = os.path.join(sim_folder, 'large', 'policy_changes', 'policy_change.{i}.log'),
-    params:
-        mem = 2000,
-        name = 'simulate_{i}',
-        qos = 'fast'
-    threads: 1
-    singularity: "docker://evolbioinfo/treesimulator:v0.1.6"
-    shell:
-        """
-        python py/forest_generator.py --min_tips 5000 --max_tips 10000 \
-        --in_log {input.log} --nwk {output.nwk} --out_log {output.log} \
-        --min_T 0.75 --max_T 0.75
-        """

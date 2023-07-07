@@ -36,7 +36,7 @@ rule estimate:
         name = 'estimate_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.5"
+    singularity: "docker://evolbioinfo/bdei:v0.7"
     shell:
         """
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
@@ -60,7 +60,7 @@ rule estimate_zero:
         name = 'estimate_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.5"
+    singularity: "docker://evolbioinfo/bdei:v0.7"
     shell:
         """
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
@@ -83,7 +83,7 @@ rule estimate_forest:
         name = 'estimate_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.5"
+    singularity: "docker://evolbioinfo/bdei:v0.7"
     shell:
         """
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
@@ -107,7 +107,7 @@ rule estimate_zero_forest:
         name = 'estimate_{i}',
         qos = 'fast'
     threads: 2
-    singularity: "docker://evolbioinfo/bdei:v0.5"
+    singularity: "docker://evolbioinfo/bdei:v0.7"
     shell:
         """
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`

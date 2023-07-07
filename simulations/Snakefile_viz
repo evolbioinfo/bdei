@@ -35,7 +35,7 @@ rule likelihood_stats:
         qos = 'fast',
         nwk = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{}.nwk')
     threads: 1
-    singularity: "docker://evolbioinfo/bdei:v0.4"
+    singularity: "docker://evolbioinfo/bdei:v0.7"
     shell:
         """
         python3 py/likelihood_comparison.py --estimates {input.tab} \
