@@ -11,19 +11,19 @@ for example Ebola or SARS-CoV-2. In a phylodynamics framework, it allows to infe
 parameters as the basic reproduction number R<sub>0</sub>, incubation period and infectious time 
 from a phylogenetic tree (a genealogy of pathogen sequences). 
 
-This implementation of the BDEI model solves the computational bottlenecks (due to high complexity of differential equations used in phylodynamics models,
+This implementation of the BDEI model is easily parallelizable and makes it applicable to very large data sets (dozens of samples). 
+(Due to high complexity of differential equations used in phylodynamics models,
 previous implementations [[Stadler and Bonhoeffer 2013](https://royalsocietypublishing.org/doi/10.1098/rstb.2012.0198) and [Barido-Sottani _et al._ 2018](https://doi.org/10.1101/440982) ] sometimes suffered from numerical instability and were only applicable to medium datasets of <500 samples). 
-Our fast and accurate estimator is applicable to very large datasets (10, 000 samples) allowing phylodynamics to
-catch up with pathogen sequencing efforts.
+
 
 #### Article
 
 A Zhukova, F Hecht, Y Maday, and O Gascuel. *Fast and accurate maximum likelihood estimation
-of Birth-Death Exposed-Infectious (BDEI) epidemiological
-model from phylogenetic trees* _(in prep.)_
+of Multi-Type Birth-Death epidemiological models from phylogenetic trees*, medRxiv 2022 [doi:10.1101/2022.08.02.22278328](https://doi.org/10.1101/2022.08.02.22278328)
 
 # Input data
-As an input, one needs to provide a **rooted** phylogenetical tree in [newick](https://en.wikipedia.org/wiki/Newick_format) format,
+As an input, one needs to provide a **rooted** phylogenetical tree (or a forest of rooted phylogenetic trees, all in the same file) 
+in [newick](https://en.wikipedia.org/wiki/Newick_format) format,
 and the value of one of the model parameters (for identifiability):
 * µ – becoming infectious rate corresponding to a state transition from E (exposed) to I (infectious) 
 _(can be fixed via the --mu argument)_,
@@ -33,7 +33,7 @@ _(can be fixed via the --la argument)_,
 (e.g. due to healing, death or starting a treatment) _(can be fixed via the --psi argument)_,
 * ρ – sampling probability (upon removal) _(can be fixed via the --p argument)_.
 
-## Run in python3 or command-line (for linux systems, recommended Ubuntu 21 or older versions)
+## Run in python3 or command-line (for linux systems, recommended Ubuntu 21 or more recent versions)
 
 ### 1. Install the C++ dependencies
 You would need to install g++10 and [NLOpt](https://nlopt.readthedocs.io/en/latest/) C++ libraries:
@@ -80,7 +80,7 @@ bdei_infer --nwk <path/to/tree_file.nwk> --p 0.3 --CI_repetitions 100 --log <pat
 ```
 
 This will produce a file <path/to/file_to_store_the_estimated_parameters.tab>,
- containing a tab-separated table with the estimated parameter values and their CIs (can be viewed with a text editor, Excel or Libre Office Calc).
+ containing a tab-separated table with the estimated parameter values and their CIs (can be viewed with a text editor, Excel or LibreOffice Calc).
 
 #### Help
 
