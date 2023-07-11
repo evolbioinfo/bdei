@@ -1,10 +1,40 @@
-real likelihood is the highest in 8% of cases.
-PyBDEI likelihood is the highest in 88% of cases.
-PhyloDeep likelihood is the highest in 1% of cases.
-PyBDEI (subtrees) likelihood is the highest in 3% of cases.
-PyBDEI likelihood is higher than real in 92% of cases
-PhyloDeep likelihood is higher than real in 17% of cases
-PyBDEI (subtrees) likelihood is higher than real in 74% of cases
-PyBDEI likelihood is higher than PhyloDeep in 94% of cases
-PyBDEI likelihood is higher than PyBDEI (subtrees) in 92% of cases
-PhyloDeep likelihood is higher than PyBDEI (subtrees) in 11% of cases
+PyBDEI likelihood	 is higher than PhyloDeep	 in 94.0% of cases
+	 is equal to PhyloDeep	 in 6.0% of cases
+	 is lower than PhyloDeep	 in 0.0% of cases
+	 is different from PhyloDeep	 with a p-value of 1.00974e-28
+PyBDEI likelihood	 is higher than PyBDEI (forest)	 in 4.0% of cases
+	 is equal to PyBDEI (forest)	 in 96.0% of cases
+	 is lower than PyBDEI (forest)	 in 0.0% of cases
+	 is different from PyBDEI (forest)	 with a p-value of 0.125
+PyBDEI likelihood	 is higher than PyBDEI (subepidemic)	 in 94.0% of cases
+	 is equal to PyBDEI (subepidemic)	 in 6.0% of cases
+	 is lower than PyBDEI (subepidemic)	 in 0.0% of cases
+	 is different from PyBDEI (subepidemic)	 with a p-value of 1.00974e-28
+PyBDEI likelihood	 is higher than real	 in 82.0% of cases
+	 is equal to real	 in 18.0% of cases
+	 is lower than real	 in 0.0% of cases
+	 is different from real	 with a p-value of 4.1359e-25
+PhyloDeep likelihood	 is higher than PyBDEI (forest)	 in 0.0% of cases
+	 is equal to PyBDEI (forest)	 in 6.0% of cases
+	 is lower than PyBDEI (forest)	 in 94.0% of cases
+	 is different from PyBDEI (forest)	 with a p-value of 1.00974e-28
+PhyloDeep likelihood	 is higher than PyBDEI (subepidemic)	 in 48.0% of cases
+	 is equal to PyBDEI (subepidemic)	 in 8.0% of cases
+	 is lower than PyBDEI (subepidemic)	 in 44.0% of cases
+	 is different from PyBDEI (subepidemic)	 with a p-value of 0.754652
+PhyloDeep likelihood	 is higher than real	 in 16.0% of cases
+	 is equal to real	 in 13.0% of cases
+	 is lower than real	 in 71.0% of cases
+	 is different from real	 with a p-value of 1.95699e-09
+PyBDEI (forest) likelihood	 is higher than PyBDEI (subepidemic)	 in 94.0% of cases
+	 is equal to PyBDEI (subepidemic)	 in 6.0% of cases
+	 is lower than PyBDEI (subepidemic)	 in 0.0% of cases
+	 is different from PyBDEI (subepidemic)	 with a p-value of 1.00974e-28
+PyBDEI (forest) likelihood	 is higher than real	 in 79.0% of cases
+	 is equal to real	 in 20.0% of cases
+	 is lower than real	 in 1.0% of cases
+	 is different from real	 with a p-value of 1.34003e-22
+PyBDEI (subepidemic) likelihood	 is higher than real	 in 9.0% of cases
+	 is equal to real	 in 19.0% of cases
+	 is lower than real	 in 72.0% of cases
+	 is different from real	 with a p-value of 2.45574e-13

@@ -1,14 +1,14 @@
 
-LEAST-SQUARE METHODS TO ESTIMATE RATES AND DATES - v.1.10 
+LEAST-SQUARE METHODS TO ESTIMATE RATES AND DATES - v.2.4.1 
 
 
 Input files:
-  i                                               Input tree file : /home/azhukova/projects/bde/ebola/SLE/rooted.tree.0.nwk
-  d                                               Input date file : /home/azhukova/projects/bde/ebola/SLE/lsd2.dates
+  i                                               Input tree file : /home/azhukova/projects/bdei_main/ebola/data/rooted.tree.0.nwk
+  d                                               Input date file : /home/azhukova/projects/bdei_main/ebola/data/lsd2.dates
   p                                                Partition file : No
   g                                               Given outgroups : No
 Output file:
-  o                                                  Output file  : /home/azhukova/projects/bde/ebola/SLE/timetree.0.wd
+  o                                                  Output file  : /home/azhukova/projects/bdei_main/ebola/data/timetree.0.wd
 Parameters:
   a                                                     Root date : No
   z                                                     Tips date : No
@@ -22,9 +22,7 @@ Parameters:
   f                                  Compute confidence intervals : Yes, sampling 1000 times
   q                  Standard deviation of lognormal relaxed clock: 0.2 (for computing confidence intervals)
   s                                               Sequence length : 18996
-  e                                          Exclude outlier tips : Yes, detect and exclude outliers from the analysis
-  m                   Number of sampling nodes to detect outliers : 500
-  e                       The Zscore threshold to detect outliers : 3
+  e                                          Exclude outlier tips : No
   u                Min internal branch length of time scaled tree : 0.0001
   U                Min external branch length of time scaled tree : 0
   l                        Collapsed internal branch length limit : 0
@@ -36,15 +34,13 @@ Parameters:
 Tree 1 
 Parameter to adjust variances was set to 0.000526427 (settable via option -b)
 Minimum branch length of time scaled tree (settable via option -u and -U): 0.0001
+
 *RESULTS:
-- The input dates associated with the following 38 nodes are considered as
- outliers, so those nodes were removed from the analysis:
- 485 235 180 1429 170 510 349 365 738 870 766 436 62 1559 1283 123 1171 1327 667 99 1407 140 233 252 249 173 519 965 1418 450 1348 319 851 915 819 873 27 435
 - Dating results:
- rate 0.0160607, tMRCA 2013.3 , objective function 4.12646
+ rate 0.0144842, tMRCA 2013.53 , objective function 4.09759
 - Results with confidence intervals:
- rate 0.0160607 [0.0156738; 0.0164821], tMRCA 2013.3 [2013.1; 2013.47], objective function 4.12646
+ rate 0.0144842 [0.0141733; 0.0149336], tMRCA 2013.53 [2013.37; 2013.66], objective function 4.09759
 
 *********************************************************
 
-TOTAL ELAPSED TIME: 275.16 seconds
+TOTAL ELAPSED TIME: 99.5555 seconds

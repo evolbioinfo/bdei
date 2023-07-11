@@ -4,8 +4,8 @@ import os
 # snakemake --snakefile Snakefile_time --keep-going --cores 7 --use-singularity --singularity-prefix ~/.singularity --singularity-args "--home ~"
 
 # To run on bioevo (change shakemake activation below if you are not Anna ;) :
-# source ~/.bashrc && conda activate snakemake && module load singularity && cd /pasteur/zeus/projets/p01/Evolbioinfo/users/azhukova/projects/bdei/simulations
-# snakemake --snakefile Snakefile_time --keep-going --cores 1 --use-singularity --singularity-prefix $HOME/.singularity --singularity-args "-B /pasteur" --cluster "sbatch -c {threads} -o logs/{params.name}.log -e logs/{params.name}.log --mem {params.mem} -p bioevo --qos={params.qos}  -A bioevo -J {params.name}" --jobs 300
+# source ~/.bashrc && conda activate snakemake && module load apptainer && cd /pasteur/zeus/projets/p01/Evolbioinfo/users/azhukova/projects/bdei/simulations
+# snakemake --snakefile Snakefile_time --keep-going --cores 1 --use-singularity --singularity-prefix $HOME/.singularity --singularity-args "-B /pasteur" --cluster "sbatch --cpus-per-task={threads} -o logs/{params.name}.log -e logs/{params.name}.log --mem {params.mem} -p bioevo --qos={params.qos}  -A bioevo  -J {params.name}" --jobs 300 --cores 4
 
 
 localrules: all
@@ -27,7 +27,7 @@ rule times:
     '''
     input:
         time = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{i}.threads={cores}.time'), \
-            i=REPETITIONS, cores=range(1, 5)),
+            i=REPETITIONS, cores=range(1, 4)),
     output:
         tab = os.path.join(sim_folder, '{dataset}', 'times.tab'),
     params:
@@ -49,22 +49,22 @@ rule estimate_params_p_fixed_threads:
         nwk = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.nwk'),
         log = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.log'),
     output:
-        time = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{{i}}.threads={cores}.time'), cores=range(1, 5)),
+        time = expand(os.path.join(sim_folder, '{{dataset}}', 'trees', 'tree.{{i}}.threads={cores}.time'), cores=range(1, 4)),
+    threads: 4
     params:
         mem = 2000,
         name = 'estimate_parallel_{dataset}_{i}',
         qos = 'fast',
-        pattern = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.threads=$t.time'),
-    threads: 4
-    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+        pattern = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{i}.threads=$c.time')
+    singularity: "docker://evolbioinfo/bdei:v0.7"
     shell:
         """
         p=`tail -n 1 {input.log} | awk '{{ print $8 }}'`
-        cat {input.log}
+        T=`tail -n 1 {input.log} | awk '{{ print $4 }}'`
 
-        for t in $(seq 1 4)
+        for c in $(seq 1 3)
         do
-            echo "bdei_infer --p $p -t $t --nwk {input.nwk} --time_log {params.pattern}"
-            bdei_infer --p $p --nwk {input.nwk} --time_log {params.pattern} -t $t
+            echo "bdei_infer --p $p --nwk {input.nwk} -t $c -c 100 --log_level 0 --time_log {params.pattern} --T $T"
+            bdei_infer --p $p --nwk {input.nwk} -t $c -c 100 --log_level 0 --time_log {params.pattern} --T $T
         done
         """

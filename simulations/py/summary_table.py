@@ -32,9 +32,9 @@ if __name__ == "__main__":
         bdf = pd.read_csv(params.estimated_beast2, header=0)
         bdf.index = bdf.index.map(int)
         bdf.columns = ['R_naught', 'infectious_time', 'incubation_period']
-        bdf.loc[pd.isna(bdf['R_naught']), 'R_naught'] = 3
-        bdf.loc[pd.isna(bdf['infectious_time']), 'infectious_time'] = 5.5
-        bdf.loc[pd.isna(bdf['incubation_period']), 'incubation_period'] = 25.1
+        # bdf.loc[pd.isna(bdf['R_naught']), 'R_naught'] = 3
+        # bdf.loc[pd.isna(bdf['infectious_time']), 'infectious_time'] = 5.5
+        # bdf.loc[pd.isna(bdf['incubation_period']), 'incubation_period'] = 25.1
         bdf_ci = pd.read_csv(params.estimated_beast2_CI, index_col=0, header=0)
         bdf_ci.index = bdf_ci.index.map(lambda _: int(_) - 1)
         bdf_ci = bdf_ci[['R_naught_CI_2_5', 'R_naught_CI_97_5',
@@ -98,8 +98,9 @@ if __name__ == "__main__":
 
     for est in params.estimated:
         i = int(re.findall(r'[0-9]+', est)[0])
+        tree_type = re.findall(r'([\w_]+).[0-9]+', est)[0]
         ddf = pd.read_csv(est, sep='\t')
-        est_label = 'PyBDEI{}'.format('' if 'tree' in est else ' (forest)' if 'forest' in est else ' (subtrees)')
+        est_label = 'PyBDEI{}'.format('' if 'tree' == tree_type else ' ({})'.format(tree_type))
         estimates = ddf.loc[next(iter(ddf.index)), :]
         df_i = '{}.{}'.format(i, est_label)
         df.loc[df_i, ['mu', 'psi', 'R_naught', 'incubation_period', 'infectious_time']] \
@@ -115,6 +116,9 @@ if __name__ == "__main__":
 
     df.index = df.index.map(lambda _: int(_.split('.')[0]))
     df.sort_index(inplace=True)
+    non_convergent_index = df[pd.isna(df['R_naught'])].index
+    print('Dropping index values {} as some of the results are null for them'.format(non_convergent_index))
+    df.drop(list(non_convergent_index), axis=0, inplace=True)
     df[['type', 'T', 'sampled_tips', 'observed_trees', 'unobserved_trees',
         'mu', 'mu_min', 'mu_max',
         'lambda', 'lambda_min', 'lambda_max',

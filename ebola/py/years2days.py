@@ -13,7 +13,8 @@ if '__main__' == __name__:
     for tree in trees:
         for n in tree.traverse():
             n.dist *= 365
-    nwks = [tree.write(format=5, format_root_node=True) for tree in trees]
+        tree.add_feature('T', float(getattr(tree, 'T')) * 365)
+    nwks = [tree.write(format=5, format_root_node=True, features=['T']) for tree in trees]
     with open(params.out_nwk, 'w+') as f:
         f.write('\n'.join(nwks) + '\n')
 

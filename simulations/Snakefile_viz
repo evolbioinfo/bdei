@@ -14,8 +14,8 @@ REPETITIONS = list(range(100))
 
 rule all:
     input:
-        expand(os.path.join(sim_folder, '{dataset}', 'errors.png'), dataset=DATASETS),
-        expand(os.path.join(sim_folder, '{dataset}', 'errors_tree_mu_la_psi_p.png'), dataset=DATASETS),
+        expand(os.path.join(sim_folder, '{dataset}', 'errors.svg'), dataset=DATASETS),
+        expand(os.path.join(sim_folder, 'large', 'errors_tree_mu_la_psi_p.svg'), dataset=DATASETS),
         expand(os.path.join(sim_folder, '{dataset}', 'likelihood_stats.txt'), dataset=DATASETS),
 
 
@@ -35,7 +35,7 @@ rule likelihood_stats:
         qos = 'fast',
         nwk = os.path.join(sim_folder, '{dataset}', 'trees', 'tree.{}.nwk')
     threads: 1
-    singularity: "docker://evolbioinfo/bdei:v0.1.17"
+    singularity: "docker://evolbioinfo/bdei:v0.7"
     shell:
         """
         python3 py/likelihood_comparison.py --estimates {input.tab} \
@@ -75,8 +75,8 @@ rule combine_estimates_large:
     Combine estimates.
     '''
     input:
-        log = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.log'), i=REPETITIONS, type=['tree', 'cluster']),
-        est_p = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.est'), i=REPETITIONS, type=['tree', 'cluster']),
+        log = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.log'), i=REPETITIONS, type=['tree', 'subepidemic', 'forest']),
+        est_p = expand(os.path.join(sim_folder, 'large', '{type}s', '{type}.{i}.est'), i=REPETITIONS, type=['tree', 'subepidemic', 'forest']),
         est_dl = os.path.join(sim_folder, 'large', 'CNN_CBLV.csv'),
     output:
         tab = os.path.join(sim_folder, 'large', 'estimates.tab'),
@@ -124,7 +124,7 @@ rule plot_errors:
     input:
         tab = os.path.join(sim_folder, '{dataset}', 'estimates.tab'),
     output:
-        pdf = os.path.join(sim_folder, '{dataset}', 'errors.png'),
+        pdf = os.path.join(sim_folder, '{dataset}', 'errors.svg'),
         tab = os.path.join(sim_folder, '{dataset}', 'errors.tab'),
     params:
         mem = 2000,
@@ -144,7 +144,7 @@ rule plot_errors_mu_la_psi_p:
     input:
         tab = os.path.join(sim_folder, '{dataset}', 'estimates_{type}_mu_la_psi_p.tab'),
     output:
-        pdf = os.path.join(sim_folder, '{dataset}', 'errors_{type}_mu_la_psi_p.png'),
+        pdf = os.path.join(sim_folder, '{dataset}', 'errors_{type}_mu_la_psi_p.svg'),
         tab = os.path.join(sim_folder, '{dataset}', 'errors_{type}_mu_la_psi_p.tab'),
     params:
         mem = 2000,

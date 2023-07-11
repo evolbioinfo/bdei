@@ -16,11 +16,18 @@ previous implementations [[Stadler and Bonhoeffer 2013](https://royalsocietypubl
 Our fast and accurate estimator is applicable to very large datasets (10, 000 samples) allowing phylodynamics to
 catch up with pathogen sequencing efforts.
 
-#### Article
 
-A Zhukova, F Hecht, Y Maday, and O Gascuel. *Fast and accurate maximum likelihood estimation
-of Birth-Death Exposed-Infectious (BDEI) epidemiological
-model from phylogenetic trees* _(in prep.)_
+
+[![DOI:10.1101/2022.08.02.22278328](https://zenodo.org/badge/DOI/10.1101/2022.08.02.22278328.svg)](https://doi.org/10.1101/2022.08.02.22278328)
+[![GitHub release](https://img.shields.io/github/v/release/evolbioinfo/bdei.svg)](https://github.com/evolbioinfo/bdei/releases)
+[![PyPI version](https://badge.fury.io/py/pybdei.svg)](https://pypi.org/project/pybdei/)
+[![PyPI downloads](https://shields.io/pypi/dm/pybdei)](https://pypi.org/project/pybdei/)
+[![Docker pulls](https://img.shields.io/docker/pulls/evolbioinfo/bdei)](https://hub.docker.com/r/evolbioinfo/bdei/tags)
+
+
+#### Preprint
+
+A Zhukova, F Hecht, Y Maday, and O Gascuel. *Fast and Accurate Maximum-Likelihood Estimation of Multi-Type Birth-Death Epidemiological Models from Phylogenetic Trees* medRxiv 2022 [doi:10.1101/2022.08.02.22278328](https://doi.org/10.1101/2022.08.02.22278328)
 
 # Input data
 As an input, one needs to provide a **rooted** phylogenetical tree in [newick](https://en.wikipedia.org/wiki/Newick_format) format,
@@ -39,7 +46,8 @@ _(can be fixed via the --la argument)_,
 There are 4 alternative ways to run __PyBDEI__ on your computer: 
 with [docker](https://www.docker.com/community-edition), 
 [singularity](https://www.sylabs.io/singularity),
-in python3 (only on linux systems), or via command line (only on linux systems, requires installation with python3).
+in Python3 (only on linux systems), or via command line (only on linux systems, requires installation with Python3).
+
 
 ## Run with docker
 
@@ -48,7 +56,7 @@ Once [docker](https://www.docker.com/community-edition) is installed, run the fo
 (here we assume that the sampling probability value is known and fixed to 0.3):
 
 ```bash
-docker run -v <path_to_the_folder_containing_the_tree>:/data:rw -t evolbioinfo/pybdei --nwk /data/<tree_file.nwk> --p 0.3 --CI_repetitions 100 --log <file_to_store_the_estimated_parameters.tab>
+docker run -v <path_to_the_folder_containing_the_tree>:/data:rw -t evolbioinfo/bdei --nwk /data/<tree_file.nwk> --p 0.3 --CI_repetitions 100 --log <file_to_store_the_estimated_parameters.tab>
 ```
 
 This will produce a file <file_to_store_the_estimated_parameters.tab> in the <path_to_the_folder_containing_the_tree> folder,
@@ -58,7 +66,7 @@ This will produce a file <file_to_store_the_estimated_parameters.tab> in the <pa
 
 To see advanced options, run
 ```bash
-docker run -t evolbioinfo/pybdei -h
+docker run -t evolbioinfo/bdei -h
 ```
 
 ## Run with singularity
@@ -83,7 +91,7 @@ To see advanced options, run
 singularity run docker://evolbioinfo/bdei -h
 ```
 
-## Run in python3 or command-line (for linux systems, recommended Ubuntu 21 or older versions)
+## Run in python3 or command-line (for linux systems, recommended Ubuntu 21 or newer versions)
 
 ### 1. Install the C++ dependencies
 You would need to install g++10 and [NLOpt](https://nlopt.readthedocs.io/en/latest/) C++ libraries:

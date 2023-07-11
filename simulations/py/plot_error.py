@@ -1,4 +1,3 @@
-import logging
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
@@ -11,50 +10,19 @@ from statsmodels.stats.weightstats import CompareMeans
 RATE_PARAMETERS = ['mu', 'lambda', 'psi']
 EPIDEMIOLOGIC_PARAMETERS = ['R_naught', 'infectious_time', 'incubation_period']
 PARAMETERS = RATE_PARAMETERS + ['p'] + EPIDEMIOLOGIC_PARAMETERS
-
-
-def asses_CIs(types):
-    for type in types:
-        mask = df['type'] == type
-        if 'PyBDEI' in type:
-            print('\n================{}==============='.format(type))
-            n_observations = sum(mask)
-            for par in RATE_PARAMETERS:
-                df.loc[mask, '{}_within_CI'.format(par)] \
-                    = np.less_equal(df.loc[mask, '{}_min'.format(par)], real_df[par]) \
-                      & np.less_equal(real_df[par], df.loc[mask, '{}_max'.format(par)])
-                print('{}:\t{:.1f}% within CIs'
-                      .format(par, 100 * sum(df.loc[mask, '{}_within_CI'.format(par)]) / n_observations))
-                df.loc[mask, '{}_CI_relative_width'.format(par)] \
-                    = 100 * (df.loc[mask, '{}_max'.format(par)] - df.loc[mask, '{}_min'.format(par)]) / real_df[par]
-                print('{}:\t{:.1f}% median CI width'
-                      .format(par, (df.loc[mask, '{}_CI_relative_width'.format(par)].median())))
-        elif type != 'real':
-            print('\n================{}==============='.format(type))
-            n_observations = sum(mask)
-            for par in EPIDEMIOLOGIC_PARAMETERS:
-                df.loc[mask, '{}_within_CI'.format(par)] \
-                    = np.less_equal(df.loc[mask, '{}_min'.format(par)], real_df[par]) \
-                      & np.less_equal(real_df[par], df.loc[mask, '{}_max'.format(par)])
-                print('{}:\t{:.1f}% within CIs'
-                      .format(par, 100 * sum(df.loc[mask, '{}_within_CI'.format(par)]) / n_observations))
-                df.loc[mask, '{}_CI_relative_width'.format(par)] \
-                    = 100 * (df.loc[mask, '{}_max'.format(par)] - df.loc[mask, '{}_min'.format(par)]) / real_df[par]
-                print('{}:\t{:.1f}% median CI width'
-                      .format(par, (df.loc[mask, '{}_CI_relative_width'.format(par)].median())))
+par2greek = {'mu': u'\u03bc', 'lambda': u'\u03bb', 'psi': u'\u03c8', 'p': '\u03c1',
+             'R_naught': u'\u0052\u2080' + '=' + u'\u03bb\u002F\u03c8',
+             'infectious_time': 'infectious time 1' + u'\u002F\u03c8', 'incubation_period': 'incubation period 1' + u'\u002F\u03bc'}
 
 
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Plots errors.")
-    parser.add_argument('--estimates', type=str, help="estimated parameters")
-    parser.add_argument('--pdf', type=str, help="plot")
-    parser.add_argument('--tab', type=str, help="error table")
-    parser.add_argument('--no_forests', action='store_true')
+    parser.add_argument('--estimates', type=str, help="estimated parameters", default='/home/azhukova/projects/bdei_main/simulations/large/estimates.tab')
+    parser.add_argument('--pdf', type=str, help="plot", default='/home/azhukova/projects/bdei_main/simulations/large/errors.svg')
+    parser.add_argument('--tab', type=str, help="error table", default='/home/azhukova/projects/bdei_main/simulations/large/errors.tab')
     params = parser.parse_args()
-    logging.getLogger().handlers = []
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s: %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
 
     df = pd.read_csv(params.estimates, sep='\t', index_col=0)
 
@@ -66,8 +34,6 @@ if __name__ == "__main__":
         mask = df['type'] == type
         for par in PARAMETERS:
             df.loc[mask, '{}_error'.format(par)] = (df.loc[mask, par] - real_df[par]) / real_df[par]
-
-    asses_CIs(types)
 
     error_columns = [col for col in df.columns if 'error' in col]
     df[['type'] + PARAMETERS + error_columns].to_csv(params.tab, sep='\t')
@@ -85,9 +51,10 @@ if __name__ == "__main__":
     for pars, ax in ((RATE_PARAMETERS, ax1), (EPIDEMIOLOGIC_PARAMETERS, ax2)):
         data = []
         par2type2avg_error = defaultdict(lambda: dict())
+
         for type in types:
             for par in pars:
-                data.extend([[par, _, type]
+                data.extend([[par2greek[par], _, type]
                              for _ in df.loc[df['type'] == type, '{}_error'.format(par)].apply(abs_error_or_1)])
                 par2type2avg_error[par][type] = \
                     '{:.2f} ({:.2f})'.format(np.mean(np.abs(df.loc[df['type'] == type, '{}_error'.format(par)])),
@@ -102,15 +69,13 @@ if __name__ == "__main__":
                     pval_abs = \
                         CompareMeans.from_data(data1=df.loc[df['type'] == type_1, '{}_error'.format(par)].apply(np.abs),
                                                data2=df.loc[df['type'] == type_2, '{}_error'.format(par)].apply(np.abs)).ztest_ind()[1]
-                    if 'forest' in type_1 or 'forest' in type_2:
-                        pval_abs = 1
                     par2types2pval[par][(type_1, type_2)] = pval_abs
 
         ERROR_COL = 'relative error'
         plot_df = pd.DataFrame(data=data, columns=['parameter', ERROR_COL, 'config'])
 
         if 'BEAST2' not in types:
-            palette = [sns.color_palette("colorblind")[2], sns.color_palette("colorblind")[0], sns.color_palette("colorblind")[-1]]
+            palette = [sns.color_palette("colorblind")[2], sns.color_palette("colorblind")[0], sns.color_palette("colorblind")[-1], sns.color_palette("colorblind")[4]]
         else:
             palette = [sns.color_palette("colorblind")[1], sns.color_palette("colorblind")[2],
                        sns.color_palette("colorblind")[0]]
@@ -132,18 +97,18 @@ if __name__ == "__main__":
             boxes = [TextArea(text, textprops=dict(color=color, ha='center', va='center', fontsize='x-small',
                                                    fontweight='bold'))
                      for text, color in zip((par2type2avg_error[par][_] for _ in types), palette)]
-            return HPacker(children=boxes, align="center", pad=0, sep=3)
-        xbox = HPacker(children=[get_xbox(par) for par in pars], align="center", pad=0, sep=14)
+            return HPacker(children=boxes, align="center", pad=0, sep=3 if n_types == 3 else 1)
+        xbox = HPacker(children=[get_xbox(par) for par in pars], align="center", pad=0, sep=14 if n_types == 3 else 23)
         anchored_xbox = AnchoredOffsetbox(loc=3, child=xbox, pad=0, frameon=False,
-                                          bbox_to_anchor=(0.06 if n_types == 3 else 0.09, -0.14),
+                                          bbox_to_anchor=(0.06 if n_types == 3 else 0.03, -0.14),
                                           bbox_transform=ax.transAxes, borderpad=0.)
         ax.set_xlabel('')
         ax.add_artist(anchored_xbox)
 
         def get_pbox(par):
-            EMPTY = ' ' * 10
+            EMPTY = ' ' * (10 if n_types == 3 else 12)
             LONG_DASH = u"\u2014"
-            FILLED = LONG_DASH * 10
+            FILLED = LONG_DASH * (10 if n_types == 3 else 12)
             boxes = []
             for i in range(n_types - 1):
                 type_1 = types[i]
@@ -161,9 +126,9 @@ if __name__ == "__main__":
                                                              fontsize='x-small', fontweight='bold', family='monospace')))
                     s += FILLED
             return VPacker(children=list(reversed(boxes)), mode='equal', pad=0, sep=3) if len(boxes) > 1 else boxes[0]
-        xbox = HPacker(children=[get_pbox(par) for par in pars], align="center", pad=0, sep=20)
+        xbox = HPacker(children=[get_pbox(par) for par in pars], align="center", pad=0, sep=20 if n_types == 3 else 11)
         anchored_xbox = AnchoredOffsetbox(loc=3, child=xbox, pad=0, frameon=False,
-                                          bbox_to_anchor=(0.17 if n_types == 3 else 0.20, 1),
+                                          bbox_to_anchor=(0.17 if n_types == 3 else 0.01, 0.8),
                                           bbox_transform=ax.transAxes, borderpad=0.)
         ax.set_xlabel('')
         ax.add_artist(anchored_xbox)
@@ -171,7 +136,8 @@ if __name__ == "__main__":
         if pars != RATE_PARAMETERS:
             leg.remove()
 
-    fig.set_size_inches(9 if n_types == 3 else 6.5, 8 if n_types == 3 else 6)
-    plt.tight_layout()
+    if n_types == 3:
+        fig.set_size_inches(9, 9)
+    # plt.tight_layout()
     # plt.show()
     plt.savefig(params.pdf, dpi=300)

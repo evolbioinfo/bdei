@@ -36,6 +36,6 @@ struct Solution {
 
 
 Solution
-*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R T, R u, int nbdirerr, int size_pool, int nstarts);
+*inferParameters(const string &treename, R *x0, const R *dub, R pie, R mu, R lambda, R psi, R p, R u, R ut, int nbdirerr, int size_pool, int debug_, int nstarts);
 
-R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R T, R u);
+R calculateLikelihood(const string &treename, R mu, R lambda, R psi, R p, R pie, R u, R ut, int size_pool, int debug_);
