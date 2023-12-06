@@ -18,16 +18,16 @@ catch up with pathogen sequencing efforts.
 
 
 
-[![DOI:10.1101/2022.08.02.22278328](https://zenodo.org/badge/DOI/10.1101/2022.08.02.22278328.svg)](https://doi.org/10.1101/2022.08.02.22278328)
+[![DOI:10.1093/sysbio/syad059](https://zenodo.org/badge/DOI/10.1093/sysbio/syad059.svg)](https://doi.org/10.1093/sysbio/syad059)
 [![GitHub release](https://img.shields.io/github/v/release/evolbioinfo/bdei.svg)](https://github.com/evolbioinfo/bdei/releases)
 [![PyPI version](https://badge.fury.io/py/pybdei.svg)](https://pypi.org/project/pybdei/)
 [![PyPI downloads](https://shields.io/pypi/dm/pybdei)](https://pypi.org/project/pybdei/)
 [![Docker pulls](https://img.shields.io/docker/pulls/evolbioinfo/bdei)](https://hub.docker.com/r/evolbioinfo/bdei/tags)
 
 
-#### Preprint
+#### Article
 
-A Zhukova, F Hecht, Y Maday, and O Gascuel. *Fast and Accurate Maximum-Likelihood Estimation of Multi-Type Birth-Death Epidemiological Models from Phylogenetic Trees* medRxiv 2022 [doi:10.1101/2022.08.02.22278328](https://doi.org/10.1101/2022.08.02.22278328)
+A Zhukova, F Hecht, Y Maday, and O Gascuel. *Fast and Accurate Maximum-Likelihood Estimation of Multi-Type Birth-Death Epidemiological Models from Phylogenetic Trees* Syst Biol. 2023 Sep 13:syad059. doi: [10.1093/sysbio/syad059](https://doi.org/10.1093/sysbio/syad059)
 
 # Input data
 As an input, one needs to provide a **rooted** phylogenetical tree in [newick](https://en.wikipedia.org/wiki/Newick_format) format,
