@@ -34,9 +34,9 @@ setup(
                       'nlopt>=2.6.1'],
     setup_requires=['numpy>=1.24.0', 'nlopt>=2.6.1'],
     include_package_data=True,
-    package_data={'pybdei': ['*.hpp'],
+    package_data={'pybdei': ['*.hpp', os.path.join('..', 'README.md'), os.path.join('..', 'LICENSE')],
                   'bdei': ['*.hpp']},
-    version='0.9',
+    version='0.10',
     description='Fast and accurate epidemiological parameter estimation from phylogenetic trees '
                 'with the Birth-Death Exposed-Infectious (BDEI) model.',
     long_description=open('README.md').read(),
