@@ -5,8 +5,8 @@ import os
 from setuptools import setup, Extension, find_packages
 import numpy as np
 
-os.environ["CC"] = "g++"
-os.environ["CXX"] = "g++"
+# os.environ["CC"] = "c++"
+# os.environ["CXX"] = "c++"
 
 # the C++ extension module
 bdei_module = Extension('_pybdei',
@@ -37,7 +37,7 @@ setup(
     package_data={'pybdei': ['*.hpp'],
                   'bdei': ['*.hpp'],
                   '': ['README.md', 'LICENSE']},
-    version='0.12',
+    version='0.13',
     description='Fast and accurate epidemiological parameter estimation from phylogenetic trees '
                 'with the Birth-Death Exposed-Infectious (BDEI) model.',
     long_description=open('README.md').read(),

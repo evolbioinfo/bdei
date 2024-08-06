@@ -94,24 +94,24 @@ singularity run docker://evolbioinfo/bdei -h
 ## Run in python3 or command-line (for linux systems, recommended Ubuntu 21 or newer versions)
 
 ### 1. Install the C++ dependencies
-You would need to install g++10 and [NLOpt](https://nlopt.readthedocs.io/en/latest/) C++ libraries:
+You would need to install g++ and [NLOpt](https://nlopt.readthedocs.io/en/latest/) C++ libraries:
 
 ```bash
 sudo apt update --fix-missing 
-sudo apt install -y g++-10 libnlopt-cxx-dev
+sudo apt install -y g++ libnlopt-cxx-dev
 ```
 
 ### 2. Install python 3
 
-You could either install python 3 system-wide:
+You could either install python (version 3.9 or higher) system-wide:
 ```bash
 sudo apt install -y python3 python3-pip python3-setuptools python3-distutils
 ```
 
-or alternatively, you could install python 3 via [conda](https://conda.io/docs/) (make sure that conda is installed first). 
+or alternatively, you could install python (version 3.9 or higher) via [conda](https://conda.io/docs/) (make sure that conda is installed first). 
 Here we will create a conda environment called _pybdeienv_:
 ```bash
-conda create --name pybdeienv python=3
+conda create --name pybdeienv python=3.9
 conda activate pybdeienv
 pip3 install setuptools
 ```
