@@ -103,28 +103,24 @@ sudo apt install -y g++ libnlopt-cxx-dev
 
 ### 2. Install python 3
 
-You could either install python (version 3.9 or higher) system-wide:
+You could either install python (version 3.9 or higher) system-wide and then install pybdei via pip:
 ```bash
 sudo apt install -y python3 python3-pip python3-setuptools python3-distutils
-```
-
-or alternatively, you could install python (version 3.9 or higher) via [conda](https://conda.io/docs/) (make sure that conda is installed first). 
-Here we will create a conda environment called _pybdeienv_:
-```bash
-conda create --name pybdeienv python=3.9
-conda activate pybdeienv
-pip3 install setuptools
-```
-
-### 3. Install numpy and PyBDEI
-```bash
 pip3 install numpy 
 pip3 install pybdei
 ```
 
+or alternatively, you could install python (version 3.12) and pybdei via [conda](https://conda.io/docs/) (make sure that conda is installed first). 
+Here we will create a conda environment called _pybdeienv_:
+```bash
+conda create --name pybdeienv python=3.12
+conda activate pybdeienv
+conda install pybdei
+```
+
 
 ### Basic usage in a command line
-If you installed __PyBDEI__ via conda, do not forget to first activate the dedicated environment (here named _pybdeienv_), e.g.
+If you installed __PyBDEI__ in a conda environment (here named _pybdeienv_), do not forget to first activate it, e.g.
 
 ```bash
 conda activate pybdeienv
