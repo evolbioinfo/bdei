@@ -4,6 +4,7 @@ from collections import namedtuple
 import _pybdei
 import numpy as np
 from ete3 import Tree
+from bdct import bd_model
 
 SAMPLING_PERIOD_LENGTH = 'T'
 
@@ -14,7 +15,7 @@ DEBUG = 3
 
 PYBDEI_VERSION = 0.13
 
-PS = (0.1, 0.4, 0.7)
+MAX_RATE = 1e6
 
 MAX, MIN, MEDIAN, MEAN = 'max', 'min', 'median', 'mean'
 
@@ -142,6 +143,30 @@ def initial_rate_guess(forest, mu=None, la=None, psi=None):
 
     return sorted({avg_rate, min_rate, max_rate})
 
+def rescale_forest(forest):
+    """
+    Rescale the forest so that the mean branch length is 1, and return the mean branch length.
+    """
+
+    br_len_sum = 0
+    n_brs = 0
+    for tree in forest:
+        for _ in tree.traverse():
+            if _.dist:
+                n_brs += 1
+                br_len_sum += _.dist
+
+    mean_brlen = br_len_sum / n_brs
+
+    for tree in forest:
+        for _ in tree.traverse():
+            _.dist /= mean_brlen
+        tree.add_feature(SAMPLING_PERIOD_LENGTH, getattr(tree, SAMPLING_PERIOD_LENGTH))
+
+    return mean_brlen
+
+
+
 
 def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
           mu=-1, la=-1, psi=-1, p=-1, T=0., u=-1, CI_repetitions=0, threads=1, log_level=INFO, u_policy=MEAN, **kwargs):
@@ -149,21 +174,8 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
 
     forest, u_T = parse_forest(nwk, T=T, u_policy=u_policy)
 
-    if isinstance(start, BDEI_result):
-        start = np.array([start.mu, start.la, start.psi, start.p])
-    if start is None:
-        if not p or p <= 0 or p >= 1:
-            rate = initial_rate_guess(forest, mu, la, psi).pop()
-            starts = [[rate, rate, rate, pp] for pp in PS]
-        else:
-            starts = [[rate, rate, rate, p] for rate in initial_rate_guess(forest, mu, la, psi)]
-    else:
-        starts = [start]
-    for s in starts:
-        s[-1] = min(0.99, max(0.001, s[-1]))
-
     if upper_bounds is None:
-        upper_bounds = np.array([np.inf, np.inf, np.inf, 1])
+        upper_bounds = np.array([MAX_RATE, MAX_RATE, MAX_RATE, 1])
     elif isinstance(upper_bounds, BDEI_result):
         upper_bounds = np.array([upper_bounds.mu, upper_bounds.la, upper_bounds.psi, upper_bounds.p])
     else:
@@ -171,6 +183,42 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
     if any(upper_bounds <= 0):
         raise ValueError('Upper bound must be positive.')
     upper_bounds[-1] = min(upper_bounds[-1], 1)
+    psi_defined = psi and psi > 0
+    mu_defined = mu and mu > 0
+    la_defined = la and la > 0
+    p_defined = p and 0 < p <= 1
+
+    if isinstance(start, BDEI_result):
+        start = np.array([start.mu, start.la, start.psi, start.p])
+    if start is None:
+        # set it in such a way that infected time = infectious + incubation times
+        bd_removal_rate = psi if psi_defined else None
+        upper_bound_bd_rate = upper_bounds[2] if not psi_defined else bd_removal_rate
+        annotate_forest_with_time(forest)
+        T = max(max(getattr(_, TIME) for _ in tree) for tree in forest)
+        [la_bd, bd_removal_rate, p_bd], _ = (
+            bd_model.infer(forest, T=T, la=la if la_defined else None, psi=bd_removal_rate, p=p if p_defined else None,
+                           upper_bounds=np.array([upper_bounds[1], upper_bound_bd_rate, upper_bounds[-1]]),
+                           ci=False))
+        start = [5 * la_bd, la_bd, bd_removal_rate, p_bd]
+        if psi_defined:
+            start[2] = psi
+        if mu_defined:
+            start[0] = mu
+        start = [min(v, b) for (v, b) in zip(start, upper_bounds)]
+        starts = [start]
+
+        # starts = [mu if mu_defined else (psi * total_removal_rate / (psi - total_removal_rate) if psi_defined) ]
+        # if not p or p <= 0 or p >= 1:
+        #     rate = initial_rate_guess(forest, mu, la, psi).pop()
+        #     starts = [[rate, rate, rate, pp] for pp in PS]
+        # else:
+        #     starts = [[rate, rate, rate, p] for rate in initial_rate_guess(forest, mu, la, psi)]
+    else:
+        starts = [start]
+    for s in starts:
+        s[-1] = min(0.99, max(0.001, s[-1]))
+
 
     if pi_E is not None and pi_E >= 0:
         if pi_E > 1:
@@ -180,28 +228,28 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
 
     something_is_fixed = False
     all_is_fixed = True
-    if mu >= 0:
+    if mu_defined:
         upper_bounds[0] = mu
         for s in starts:
             s[0] = mu
         something_is_fixed = True
     else:
         all_is_fixed = False
-    if la >= 0:
+    if la_defined:
         upper_bounds[1] = la
         for s in starts:
             s[1] = la
         something_is_fixed = True
     else:
         all_is_fixed = False
-    if psi >= 0:
+    if psi_defined:
         upper_bounds[2] = psi
         for s in starts:
             s[2] = psi
         something_is_fixed = True
     else:
         all_is_fixed = False
-    if 0 < p <= 1:
+    if p_defined:
         upper_bounds[3] = p
         for s in starts:
             s[3] = p
@@ -215,25 +263,46 @@ def infer(nwk, start=None, upper_bounds=None, pi_E=-1,
     if all_is_fixed:
         raise ValueError('At least one of the following arguments: mu, la, psi, p, should be left to be optimised.')
     starts = [np.minimum(s, upper_bounds * 0.999) for s in starts]
-    nstarts = len(starts)
-    starts = np.reshape(starts, (4 * nstarts,))
 
     temp_nwk = get_temp_file_name(nwk)
+
+    # mean_brlen = rescale_forest(forest)
     save_forest(forest, temp_nwk)
+    # upper_bounds[: -1] *= mean_brlen
+    # for _ in starts:
+    #     _[: -1] *= mean_brlen
+
+    nstarts = len(starts)
+    starts = np.reshape(starts, (4 * nstarts,))
+    # res = _pybdei.infer(f=temp_nwk, start=starts, ub=upper_bounds, pie=pi_E,
+    #                     mu=mu * mean_brlen if mu_defined else mu, la=la * mean_brlen if la_defined else la,
+    #                     psi=psi * mean_brlen if psi_defined else psi, p=p, u=u,
+    #                     ut=u_T / mean_brlen, nt=threads, nbiter=CI_repetitions,
+    #                     debug=log_level, nstarts=nstarts)
     res = _pybdei.infer(f=temp_nwk, start=starts, ub=upper_bounds, pie=pi_E,
-                        mu=mu, la=la, psi=psi, p=p, u=u, ut=u_T, nt=threads, nbiter=CI_repetitions,
+                        mu=mu, la=la, psi=psi, p=p, u=u,
+                        ut=u_T, nt=threads, nbiter=CI_repetitions,
                         debug=log_level, nstarts=nstarts)
     try:
         os.remove(temp_nwk)
     except OSError:
         pass
 
+    # return BDEI_result(mu=res[0] / mean_brlen, la=res[1] / mean_brlen, psi=res[2] / mean_brlen, p=res[3],
+    #                    mu_CI=(res[4] / mean_brlen, res[5] / mean_brlen) if CI_repetitions > 0 else None,
+    #                    la_CI=(res[6] / mean_brlen, res[7] / mean_brlen) if CI_repetitions > 0 else None,
+    #                    psi_CI=(res[8] / mean_brlen, res[9] / mean_brlen) if CI_repetitions > 0 else None,
+    #                    p_CI=(res[10], res[11]) if CI_repetitions > 0 else None,
+    #                    R_naught=res[1] / res[2], incubation_period=mean_brlen / res[0],
+    #                    infectious_time=mean_brlen / res[2]), \
+    #        BDEI_time(CPU_time=res[13], iterations=res[14])
     return BDEI_result(mu=res[0], la=res[1], psi=res[2], p=res[3],
                        mu_CI=(res[4], res[5]) if CI_repetitions > 0 else None,
                        la_CI=(res[6], res[7]) if CI_repetitions > 0 else None,
                        psi_CI=(res[8], res[9]) if CI_repetitions > 0 else None,
                        p_CI=(res[10], res[11]) if CI_repetitions > 0 else None,
-                       R_naught=res[1] / res[2], incubation_period=1 / res[0], infectious_time=1 / res[2]), \
+                       R_naught=res[1] / res[2], incubation_period=1 / res[0],
+                       infectious_time=1 / res[2]), \
            BDEI_time(CPU_time=res[13], iterations=res[14])
 
 
@@ -256,8 +325,10 @@ def get_loglikelihood(nwk, mu=-1, la=-1, psi=-1, p=-1, pi_E=-1, T=0., u=-1, thre
     forest, u_T = parse_forest(nwk, T=T, u_policy=u_policy)
 
     temp_nwk = get_temp_file_name(nwk)
+    # mean_brlen = rescale_forest(forest)
     save_forest(forest, temp_nwk)
-    res = _pybdei.likelihood(f=temp_nwk, mu=mu, la=la, psi=psi, p=p, pie=pi_E, u=u, ut=u_T, nt=threads, debug=log_level)
+    res = _pybdei.likelihood(f=temp_nwk, mu=mu, la=la, psi=psi,
+                             p=p, pie=pi_E, u=u, ut=u_T, nt=threads, debug=log_level)
     try:
         os.remove(temp_nwk)
     except OSError:
